@@ -48,6 +48,9 @@ func getPath(api string) string {
 func Handlers() *mux.Router {
 	router := mux.NewRouter()
 	router.HandleFunc(getPath("/hello"), HelloHandler)
+	router.HandleFunc(getPath("/add"), AddHandler)
+	router.HandleFunc(getPath("/edit"), EditHandler)
+	router.HandleFunc(getPath("/search"), SearchHandler)
 	return router
 }
 
