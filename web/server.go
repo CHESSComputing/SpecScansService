@@ -12,11 +12,14 @@ import (
 )
 
 type Configuration struct {
-	Port int    `json:"port"`
-	Base string `json:"string"`
+	Port        int    `json:"port"`
+	Base        string `json:"string"`
+	TemplateDir string `json:"templatedir"`
 }
 
 var Config Configuration
+
+var htmlTop, htmlBottom string
 
 // Read configFile as JSON, place in "Config" variable
 func ParseConfig(configFile string) {
@@ -57,6 +60,11 @@ func Handlers() *mux.Router {
 // Start server according to parameters in configFile
 func Server(configFile string) {
 	ParseConfig(configFile)
+
+	tmplData := MakeTmplData()
+	htmlTop = FormatTemplate(Config.TemplateDir, "top.tmpl", tmplData)
+	htmlBottom = FormatTemplate(Config.TemplateDir, "bottom.tmpl", tmplData)
+
 	addr := fmt.Sprintf(":%d", Config.Port)
 	server := &http.Server{Addr: addr}
 	http.Handle(getPath("/"), Handlers())

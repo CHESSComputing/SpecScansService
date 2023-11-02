@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
 	"log"
 	"net/http"
 )
@@ -24,7 +25,6 @@ func HelloHandler(w http.ResponseWriter, r *http.Request) {
 func AddHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != "POST" {
 		w.WriteHeader(http.StatusMethodNotAllowed)
-		HTTPError("ERROR", "requests to /add must use POST", w)
 		return
 	}
 
@@ -44,23 +44,27 @@ func AddHandler(w http.ResponseWriter, r *http.Request) {
 // Handler for editing a record already in the database
 func EditHandler(w http.ResponseWriter, r *http.Request) {
 	id := r.FormValue("id")
-  if id == "" {
-    HTTPError("ERROR", "No record id in form", w)
-    return
-  }
+	if id == "" {
+		HTTPError("ERROR", "No record id in form", w)
+		return
+	}
 	log.Printf("Editing record %s\n", id)
 	if r.Method == "GET" {
 		// Respond with html form to edit the record
 		log.Printf("Construct record-editing HTML")
+		tmplData := MakeTmplData()
+		tmplData["Id"] = id
+		tmplData["Form"] = "Form inputs go here"
+		htmlForm := FormatTemplate(Config.TemplateDir, "editform.tmpl", tmplData)
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte("<p>record-editing form goes here</p>"))
+		w.Write([]byte(htmlTop + htmlForm + htmlBottom))
 		return
 	}
 	if r.Method == "POST" {
 		// Update the record in the db
-		log.Printf("Update the record in the database")
+		log.Printf("Update record %s in the database", id)
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte("Record updated"))
+		w.Write([]byte(fmt.Sprintf("Record %s updated", id)))
 		return
 	}
 }
@@ -70,8 +74,10 @@ func SearchHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method == "GET" {
 		// Respond with html form to construct "advanced" searches
 		log.Printf("Construct advanced search HTML")
+		tmplData := MakeTmplData()
+		htmlForm := FormatTemplate(Config.TemplateDir, "searchform.tmpl", tmplData)
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte("<p>search form goes here</p>"))
+		w.Write([]byte(htmlTop + htmlForm + htmlBottom))
 		return
 	}
 	if r.Method == "POST" {
@@ -99,8 +105,10 @@ func SearchHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		} else {
 			// Respond with matching records as HTML table
+			tmplData := MakeTmplData()
+			htmlTable := FormatTemplate(Config.TemplateDir, "searchresults.tmpl", tmplData)
 			w.WriteHeader(http.StatusOK)
-			w.Write([]byte("<p>table of matching records goes here</p>"))
+			w.Write([]byte(htmlTop + htmlTable + htmlBottom))
 			return
 		}
 	}
