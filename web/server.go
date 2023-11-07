@@ -15,6 +15,8 @@ type Configuration struct {
 	Port        int    `json:"port"`
 	Base        string `json:"string"`
 	TemplateDir string `json:"templatedir"`
+	Krb5Conf    string `json:"krb5conf"`
+	Realm       string `json:"realm"`
 }
 
 var Config Configuration
@@ -51,6 +53,8 @@ func getPath(api string) string {
 func Handlers() *mux.Router {
 	router := mux.NewRouter()
 	router.HandleFunc(getPath("/hello"), HelloHandler)
+	router.HandleFunc(getPath("/login"), LoginHandler)
+	router.HandleFunc(getPath("/auth"), KAuthHandler)
 	router.HandleFunc(getPath("/add"), AddHandler)
 	router.HandleFunc(getPath("/edit"), EditHandler)
 	router.HandleFunc(getPath("/search"), SearchHandler)
@@ -59,12 +63,15 @@ func Handlers() *mux.Router {
 
 // Start server according to parameters in configFile
 func Server(configFile string) {
+	// Load configuration to Config
 	ParseConfig(configFile)
 
+	// Setup HTML templates
 	tmplData := MakeTmplData()
 	htmlTop = FormatTemplate(Config.TemplateDir, "top.tmpl", tmplData)
 	htmlBottom = FormatTemplate(Config.TemplateDir, "bottom.tmpl", tmplData)
 
+	// Start server
 	addr := fmt.Sprintf(":%d", Config.Port)
 	server := &http.Server{Addr: addr}
 	http.Handle(getPath("/"), Handlers())

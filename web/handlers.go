@@ -5,6 +5,10 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"time"
+
+	"gopkg.in/jcmturner/gokrb5.v7/client"
+	"gopkg.in/jcmturner/gokrb5.v7/config"
 )
 
 // Helper for handling errors
@@ -19,6 +23,62 @@ func HelloHandler(w http.ResponseWriter, r *http.Request) {
 	log.Println("hello from HelloHandler")
 	w.Write([]byte("hello"))
 	return
+}
+
+// Handler for providing kerberos authentication
+func KAuthHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != "POST" {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+	// Get username & password
+	err := r.ParseForm()
+	if err != nil {
+		HTTPError("ERROR", "Cannot parse HTTP form", w)
+		return
+	}
+	username := r.FormValue("username")
+	password := r.FormValue("password")
+	if username == "" || password == "" {
+		HTTPError("ERROR", "Missing username or password", w)
+		return
+	}
+
+	// Load KRB5 configuration
+	krb5conf, err := config.Load(Config.Krb5Conf)
+	if err != nil {
+		log.Printf("Cannot load KRB5 configuration from %s", Config.Krb5Conf)
+		HTTPError("ERROR", "Cannot perform KRB5 authentication", w)
+		return
+	}
+
+	// Perform login
+	client := client.NewClientWithPassword(username, Config.Realm, password, krb5conf, client.DisablePAFXFAST(true))
+	err = client.Login()
+	if err != nil {
+		HTTPError("ERROR", "Cannot login with username/password provided", w)
+		return
+	}
+
+	// Set cookie with client credentials
+	expires := time.Now().Add(24 * time.Hour)
+	value := fmt.Sprintf("%s-%v", client.Credentials.UserName(), client.Credentials.Authenticated())
+	cookie := http.Cookie{Name: "auth-session", Value: value, Expires: expires}
+	http.SetCookie(w, &cookie)
+	w.WriteHeader(http.StatusCreated)
+	return
+}
+
+// Handler for login
+func LoginHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != "GET" {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+	tmplData := MakeTmplData()
+	htmlLogin := FormatTemplate(Config.TemplateDir, "login.tmpl", tmplData)
+	w.WriteHeader(http.StatusOK)
+	w.Write([]byte(htmlTop + htmlLogin + htmlBottom))
 }
 
 // Handler for adding a new record to the database
