@@ -17,6 +17,7 @@ type Configuration struct {
 	TemplateDir string `json:"templatedir"`
 	Krb5Conf    string `json:"krb5conf"`
 	Realm       string `json:"realm"`
+	TestMode    bool   `json:"testmode"`
 }
 
 var Config Configuration
@@ -58,6 +59,7 @@ func Handlers() *mux.Router {
 	router.HandleFunc(getPath("/add"), AddHandler)
 	router.HandleFunc(getPath("/edit"), EditHandler)
 	router.HandleFunc(getPath("/search"), SearchHandler)
+	router.HandleFunc(getPath("/"), BaseHandler)
 	return router
 }
 

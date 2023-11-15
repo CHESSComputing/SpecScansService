@@ -2,9 +2,11 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"net/http"
+	"strings"
 	"time"
 
 	"gopkg.in/jcmturner/gokrb5.v7/client"
@@ -19,10 +21,38 @@ func HTTPError(label, msg string, w http.ResponseWriter) {
 	return
 }
 
+// Helper for getting username from a request
+func getUsername(r *http.Request) (string, error) {
+	if Config.TestMode {
+		return "test", nil
+	}
+	cookie, err := r.Cookie("auth-session")
+	if err != nil {
+		return "", err
+	}
+	// Cookie added by KAuthHandler has a "Value" that looks like: username-authenticated
+	s := cookie.Value
+	splitIndex := strings.LastIndex(s, "-")
+	if splitIndex == -1 {
+		return "", errors.New("Unable to get username from auth-session")
+	}
+	return s[:splitIndex], nil
+}
+
 func HelloHandler(w http.ResponseWriter, r *http.Request) {
 	log.Println("hello from HelloHandler")
 	w.Write([]byte("hello"))
 	return
+}
+
+// Handler for all requests: log some general info
+func BaseHandler(w http.ResponseWriter, r *http.Request) {
+	user, err := getUsername(r)
+	if err != nil {
+		LoginHandler(w, r)
+	}
+	log.Printf("User %s path %v\n", user, r.URL.Path)
+	w.Write([]byte(htmlTop + "hello" + htmlBottom))
 }
 
 // Handler for providing kerberos authentication
@@ -44,29 +74,33 @@ func KAuthHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Load KRB5 configuration
-	krb5conf, err := config.Load(Config.Krb5Conf)
-	if err != nil {
-		log.Printf("Cannot load KRB5 configuration from %s", Config.Krb5Conf)
-		HTTPError("ERROR", "Cannot perform KRB5 authentication", w)
-		return
-	}
+	if Config.TestMode {
+		w.WriteHeader(http.StatusContinue)
+	} else {
+		// Load KRB5 configuration
+		krb5conf, err := config.Load(Config.Krb5Conf)
+		if err != nil {
+			log.Printf("Cannot load KRB5 configuration from %s", Config.Krb5Conf)
+			HTTPError("ERROR", "Cannot perform KRB5 authentication", w)
+			return
+		}
 
-	// Perform login
-	client := client.NewClientWithPassword(username, Config.Realm, password, krb5conf, client.DisablePAFXFAST(true))
-	err = client.Login()
-	if err != nil {
-		HTTPError("ERROR", "Cannot login with username/password provided", w)
-		return
-	}
+		// Perform login
+		client := client.NewClientWithPassword(username, Config.Realm, password, krb5conf, client.DisablePAFXFAST(true))
+		err = client.Login()
+		if err != nil {
+			HTTPError("ERROR", "Cannot login with username/password provided", w)
+			return
+		}
 
-	// Set cookie with client credentials
-	expires := time.Now().Add(24 * time.Hour)
-	value := fmt.Sprintf("%s-%v", client.Credentials.UserName(), client.Credentials.Authenticated())
-	cookie := http.Cookie{Name: "auth-session", Value: value, Expires: expires}
-	http.SetCookie(w, &cookie)
-	w.WriteHeader(http.StatusCreated)
-	return
+		// Set cookie with client credentials
+		expires := time.Now().Add(24 * time.Hour)
+		value := fmt.Sprintf("%s-%v", client.Credentials.UserName(), client.Credentials.Authenticated())
+		cookie := http.Cookie{Name: "auth-session", Value: value, Expires: expires}
+		http.SetCookie(w, &cookie)
+		w.WriteHeader(http.StatusCreated)
+	}
+	w.Header().Set("Location", "/")
 }
 
 // Handler for login
@@ -103,12 +137,20 @@ func AddHandler(w http.ResponseWriter, r *http.Request) {
 
 // Handler for editing a record already in the database
 func EditHandler(w http.ResponseWriter, r *http.Request) {
+	// Get ID of record to edit
 	id := r.FormValue("id")
 	if id == "" {
 		HTTPError("ERROR", "No record id in form", w)
 		return
 	}
-	log.Printf("Editing record %s\n", id)
+	// Ensure requesting user is allowed to edit this record
+	username, err := getUsername(r)
+	if err != nil {
+		HTTPError("ERROR", "Cannot determine username", w)
+		return
+	}
+	// Check with BeamPass: user must associated with the BTR of this record
+	log.Printf("User %s attempting to edit record %s\n", username, id)
 	if r.Method == "GET" {
 		// Respond with html form to edit the record
 		log.Printf("Construct record-editing HTML")
