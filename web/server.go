@@ -50,6 +50,18 @@ func getPath(api string) string {
 	return fmt.Sprintf("%s%s", base, api)
 }
 
+// Define middleware function for the router to use. Purpose: logging
+func middlewareLogger(rou *mux.Router) mux.MiddlewareFunc {
+	return func(h http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			defer func() {
+				log.Printf("%s %s %s %s", r.Method, r.Host, r.URL.Path, r.URL.RawQuery)
+			}()
+			h.ServeHTTP(w, r)
+		})
+	}
+}
+
 // Setup http routes
 func Handlers() *mux.Router {
 	router := mux.NewRouter()
@@ -60,6 +72,9 @@ func Handlers() *mux.Router {
 	router.HandleFunc(getPath("/edit"), EditHandler)
 	router.HandleFunc(getPath("/search"), SearchHandler)
 	router.HandleFunc(getPath("/"), BaseHandler)
+
+	// Use middlewareLogger
+	router.Use(middlewareLogger(router))
 	return router
 }
 
