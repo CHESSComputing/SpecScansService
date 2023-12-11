@@ -15,6 +15,12 @@ type Configuration struct {
 	Port        int    `json:"port"`
 	Base        string `json:"string"`
 	TemplateDir string `json:"templatedir"`
+	Krb5Conf    string `json:"krb5conf"`
+	Realm       string `json:"realm"`
+	MongodbUri  string `json:"mongodb_uri"`
+	MongodbName string `json:"mongodb_name"`
+	MongodbCollection string `json:"mongodb_collection"`
+	TestMode    bool   `json:"testmode"`
 }
 
 var Config Configuration
@@ -47,24 +53,45 @@ func getPath(api string) string {
 	return fmt.Sprintf("%s%s", base, api)
 }
 
+// Define middleware function for the router to use. Purpose: logging
+func middlewareLogger(rou *mux.Router) mux.MiddlewareFunc {
+	return func(h http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			defer func() {
+				log.Printf("%s %s %s %s", r.Method, r.Host, r.URL.Path, r.URL.RawQuery)
+			}()
+			h.ServeHTTP(w, r)
+		})
+	}
+}
+
 // Setup http routes
 func Handlers() *mux.Router {
 	router := mux.NewRouter()
 	router.HandleFunc(getPath("/hello"), HelloHandler)
+	router.HandleFunc(getPath("/login"), LoginHandler)
+	router.HandleFunc(getPath("/auth"), KAuthHandler)
 	router.HandleFunc(getPath("/add"), AddHandler)
 	router.HandleFunc(getPath("/edit"), EditHandler)
 	router.HandleFunc(getPath("/search"), SearchHandler)
+	router.HandleFunc(getPath("/"), BaseHandler)
+
+	// Use middlewareLogger
+	router.Use(middlewareLogger(router))
 	return router
 }
 
 // Start server according to parameters in configFile
 func Server(configFile string) {
+	// Load configuration to Config
 	ParseConfig(configFile)
 
+	// Setup HTML templates
 	tmplData := MakeTmplData()
 	htmlTop = FormatTemplate(Config.TemplateDir, "top.tmpl", tmplData)
 	htmlBottom = FormatTemplate(Config.TemplateDir, "bottom.tmpl", tmplData)
 
+	// Start server
 	addr := fmt.Sprintf(":%d", Config.Port)
 	server := &http.Server{Addr: addr}
 	http.Handle(getPath("/"), Handlers())
