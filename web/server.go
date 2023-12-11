@@ -17,6 +17,9 @@ type Configuration struct {
 	TemplateDir string `json:"templatedir"`
 	Krb5Conf    string `json:"krb5conf"`
 	Realm       string `json:"realm"`
+	MongodbUri  string `json:"mongodb_uri"`
+	MongodbName string `json:"mongodb_name"`
+	MongodbCollection string `json:"mongodb_collection"`
 	TestMode    bool   `json:"testmode"`
 }
 

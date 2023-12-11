@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -11,6 +12,9 @@ import (
 
 	"gopkg.in/jcmturner/gokrb5.v7/client"
 	"gopkg.in/jcmturner/gokrb5.v7/config"
+
+	"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
 // Helper for handling errors
@@ -130,7 +134,26 @@ func AddHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	log.Printf("Add record: %v\n", record)
+	// Connect to MongoDb
+	log.Printf("Connecting to %s", Config.MongodbUri)
+	client, err := mongo.Connect(context.TODO(), options.Client().ApplyURI(Config.MongodbUri))
+	if err != nil {
+		HTTPError("ERROR", "Cannot connect to database", w)
+		return
+	}
+	defer func() {
+		if err := client.Disconnect(context.TODO()); err != nil {
+			panic(err)
+		}
+	}()
+	// Get the Mongodb collection of interest
+	coll := client.Database(Config.MongodbName).Collection(Config.MongodbCollection)
+	result, err := coll.InsertOne(context.TODO(), record)
+	if err != nil {
+		HTTPError("ERROR", "Cannot insert record", w)
+		return
+	}
+	log.Printf("Added record: %v (ID: %v)", record, result.InsertedID)
 	w.WriteHeader(http.StatusOK)
 	return
 }
