@@ -148,7 +148,7 @@ func AddHandler(w http.ResponseWriter, r *http.Request) {
 	}()
 	// Get the Mongodb collection of interest
 	coll := client.Database(Config.MongodbName).Collection(Config.MongodbCollection)
-	result, err := coll.InsertOne(context.TODO(), record)
+	result, err := coll.InsertOne(context.TODO(), &record)
 	if err != nil {
 		HTTPError("ERROR", "Cannot insert record", w)
 		return
