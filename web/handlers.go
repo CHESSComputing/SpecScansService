@@ -13,6 +13,7 @@ import (
 	"gopkg.in/jcmturner/gokrb5.v7/client"
 	"gopkg.in/jcmturner/gokrb5.v7/config"
 
+	primitive "go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 )
@@ -134,6 +135,12 @@ func AddHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Peel of motor mnemonics & positions -- these are submitted to an rdb, not
+	// the mongodb.
+	motor_record := MotorRecord{MotorMnes: record.MotorMnes, MotorPositions: record.MotorPositions}
+	record.MotorMnes = nil
+	record.MotorPositions = nil
+
 	// Connect to MongoDb
 	log.Printf("Connecting to %s", Config.MongodbUri)
 	client, err := mongo.Connect(context.TODO(), options.Client().ApplyURI(Config.MongodbUri))
@@ -146,14 +153,26 @@ func AddHandler(w http.ResponseWriter, r *http.Request) {
 			panic(err)
 		}
 	}()
-	// Get the Mongodb collection of interest
+	// Get the Mongodb collection of interest and insert the record
 	coll := client.Database(Config.MongodbName).Collection(Config.MongodbCollection)
 	result, err := coll.InsertOne(context.TODO(), &record)
 	if err != nil {
 		HTTPError("ERROR", "Cannot insert record", w)
 		return
 	}
-	log.Printf("Added record: %v (ID: %v)", record, result.InsertedID)
+	mongo_id := result.InsertedID.(primitive.ObjectID).Hex()
+	log.Printf("Added record to mongodb: %v (ID: %v)\n", record, mongo_id)
+
+	// Now insert the motor mnes & positions record
+	motor_record.DatasetId = mongo_id
+	// NB: mongoid and sqlid should be the same
+	sql_id, err := InsertMotors(motor_record)
+	if err != nil {
+		log.Println(err)
+		HTTPError("ERROR", "Cannot insert motor positions record", w)
+		return
+	}
+	log.Printf("Added record to SQL db: %v (ID: %v)\n", motor_record, sql_id)
 	w.WriteHeader(http.StatusOK)
 	return
 }

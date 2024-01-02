@@ -12,15 +12,16 @@ import (
 )
 
 type Configuration struct {
-	Port        int    `json:"port"`
-	Base        string `json:"string"`
-	TemplateDir string `json:"templatedir"`
-	Krb5Conf    string `json:"krb5conf"`
-	Realm       string `json:"realm"`
-	MongodbUri  string `json:"mongodb_uri"`
-	MongodbName string `json:"mongodb_name"`
-	MongodbCollection string `json:"mongodb_collection"`
-	TestMode    bool   `json:"testmode"`
+	Port                   int    `json:"port"`
+	Base                   string `json:"string"`
+	TemplateDir            string `json:"templatedir"`
+	Krb5Conf               string `json:"krb5conf"`
+	Realm                  string `json:"realm"`
+	MongodbUri             string `json:"mongodb_uri"`
+	MongodbName            string `json:"mongodb_name"`
+	MongodbCollection      string `json:"mongodb_collection"`
+	MotorsDbDataSourceName string `json:"motorsdb_data_source_name"`
+	TestMode               bool   `json:"testmode"`
 }
 
 var Config Configuration
@@ -90,6 +91,9 @@ func Server(configFile string) {
 	tmplData := MakeTmplData()
 	htmlTop = FormatTemplate(Config.TemplateDir, "top.tmpl", tmplData)
 	htmlBottom = FormatTemplate(Config.TemplateDir, "bottom.tmpl", tmplData)
+
+	InitMotorsDb()
+	defer MotorsDb.db.Close()
 
 	// Start server
 	addr := fmt.Sprintf(":%d", Config.Port)
