@@ -9,6 +9,8 @@ import (
 	"sync"
 
 	_ "github.com/mattn/go-sqlite3"
+
+	srvConfig "github.com/CHESSComputing/golib/config"
 )
 
 // Safe to use concurrently
@@ -26,7 +28,7 @@ type MotorRecord struct {
 }
 
 func InitMotorsDb() {
-	db, err := sql.Open("sqlite3", Config.MotorsDbDataSourceName)
+	db, err := sql.Open("sqlite3", srvConfig.Config.MetaData.WebServer.LimiterHeader) // FIX temporary config -- just use LimiterHeader since it's a string field that I'm not using otherwise
 	if err != nil {
 		log.Fatal(err)
 	}
