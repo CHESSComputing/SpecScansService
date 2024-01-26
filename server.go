@@ -22,17 +22,17 @@ func setupRouter() *gin.Engine {
 		server.Route{Method: "POST", Path: "/edit", Handler: EditHandler, Authorized: true, Scope: "write"},
 		server.Route{Method: "POST", Path: "/search", Handler: SearchHandler, Authorized: true},
 	}
-	r := server.Router(routes, nil, "static", srvConfig.Config.MetaData.WebServer) // FIX temporary config
+	r := server.Router(routes, nil, "static", srvConfig.Config.SpecScans.WebServer) // FIX temporary config
 	return r
 }
 
 // Server defines our HTTP server
 func Server() {
-	Verbose = srvConfig.Config.MetaData.WebServer.Verbose // FIX temporary config
+	Verbose = srvConfig.Config.SpecScans.WebServer.Verbose // FIX temporary config
 	_httpReadRequest = services.NewHttpRequest("read", Verbose)
 
 	// setup web router and start the service
 	r := setupRouter()
-	webServer := srvConfig.Config.MetaData.WebServer // FIX temporary config
+	webServer := srvConfig.Config.SpecScans.WebServer // FIX temporary config
 	server.StartServer(r, webServer)
 }
