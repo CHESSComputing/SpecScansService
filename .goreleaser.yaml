@@ -1,0 +1,89 @@
+# This is an example .goreleaser.yml file with some sensible defaults.
+# Make sure to check the documentation at https://goreleaser.com
+
+# The lines below are called `modelines`. See `:help modeline`
+# Feel free to remove those if you don't want/need to use them.
+# yaml-language-server: $schema=https://goreleaser.com/static/schema.json
+# vim: set ts=2 sw=2 tw=0 fo=cnqoj
+#
+# see some exmaple at
+# https://github.com/goreleaser/goreleaser/issues/986
+
+version: 1
+
+before:
+  hooks:
+    - sed -i -e "s,replace ,// replace ,g" go.mod
+    # You may remove this if you don't use go modules.
+    - go mod tidy
+    # you may remove this if you don't need go generate
+    - go generate ./...
+
+builds:
+  - env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - windows
+      - darwin
+    binary: srv
+    flags:
+      - -trimpath
+    ldflags:
+      - -s -w
+    goarch:
+      - amd64
+      - arm64
+
+# use https://ko.build/ to build Go image
+# see https://github.com/goreleaser/goreleaser/blob/main/www/docs/customization/ko.md
+# and https://ko.build/
+kos:
+  - repository: ghcr.io/chesscomputing/datadiscovery
+    tags:
+      - '{{.Tag}}'
+      - '{{ if not .Prerelease }}latest{{ end }}' 
+    bare: true
+    preserve_import_paths: false
+    sbom: none
+    platforms:
+      - all
+    flags:
+      - -trimpath
+    ldflags:
+      - -s -w
+
+archives:
+  - format: tar.gz
+    # this name template makes the OS and Arch compatible with the results of `uname`.
+    name_template: >-
+      {{ .ProjectName }}_
+      {{- title .Os }}_
+      {{- if eq .Arch "amd64" }}x86_64
+      {{- else if eq .Arch "386" }}i386
+      {{- else }}{{ .Arch }}{{ end }}
+      {{- if .Arm }}v{{ .Arm }}{{ end }}
+    # use zip for windows archives
+    format_overrides:
+      - goos: windows
+        format: zip
+    files:
+      - Makefile
+      - README.md
+      - LICENSE
+
+checksum:
+  name_template: 'checksums.txt'
+snapshot:
+  name_template: "{{ incpatch .Version }}-next"
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"
+
+# The lines beneath this are called `modelines`. See `:help modeline`
+# Feel free to remove those if you don't want/use them.
+# yaml-language-server: $schema=https://goreleaser.com/static/schema.json
+# vim: set ts=2 sw=2 tw=0 fo=cnqoj
