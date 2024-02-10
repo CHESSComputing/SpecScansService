@@ -10,6 +10,7 @@
 # https://github.com/goreleaser/goreleaser/issues/986
 
 version: 1
+project_name: specscansservice
 
 before:
   hooks:
@@ -18,6 +19,8 @@ before:
     - go mod tidy
     # you may remove this if you don't need go generate
     - go generate ./...
+    # get recent golib
+    - ./get_golib.sh
 
 builds:
   - env:
@@ -71,6 +74,22 @@ archives:
       - Makefile
       - README.md
       - LICENSE
+
+dockers:
+  - image_templates:
+    - "chesscomputing/{{ .ProjectName }}/{{ .ProjectName }}:{{ .Tag }}"
+    - "chesscomputing/{{ .ProjectName }}/{{ .ProjectName }}:latest"
+    dockerfile: Dockerfile
+    # do not push yet to repo as it requires login first
+    # this will be done in CI/CD, see .github/workflows/goreleaser.yml
+    skip_push: true
+    build_flag_templates:
+      - "--platform=linux/amd64"
+      - "--label=org.opencontainers.image.created={{.Date}}"
+      - "--label=org.opencontainers.image.title={{.ProjectName}}"
+      - "--label=org.opencontainers.image.revision={{.FullCommit}}"
+      - "--label=org.opencontainers.image.version={{.Tag}}"
+      - "--label=org.opencontainers.image.description=\"FOXDEN SpecScans service\""
 
 checksum:
   name_template: 'checksums.txt'
