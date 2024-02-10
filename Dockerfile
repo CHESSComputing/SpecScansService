@@ -15,4 +15,6 @@ RUN cd $PROJECT && make && cp srv /build
 # RUN mkdir -p /data
 FROM gcr.io/distroless/static as final
 COPY --from=go-builder /build/srv /data
-LABEL org.opencontainers.image.description FOXDEN SpecScans service
+LABEL org.opencontainers.image.description="FOXDEN SpecScans service"
+LABEL org.opencontainers.image.source=https://github.com/chesscomputing/specscansservice
+LABEL org.opencontainers.image.licenses=MIT
