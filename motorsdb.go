@@ -28,7 +28,7 @@ type MotorRecord struct {
 }
 
 func InitMotorsDb() {
-	db, err := sql.Open("sqlite3", srvConfig.Config.MetaData.WebServer.LimiterHeader) // FIX temporary config -- just use LimiterHeader since it's a string field that I'm not using otherwise
+	db, err := sql.Open("sqlite3", srvConfig.Config.SpecScans.DBFile)
 	if err != nil {
 		log.Fatal(err)
 	}

@@ -28,10 +28,12 @@ func HTTPError(label, msg string, w http.ResponseWriter) {
 
 func GinError(c *gin.Context, msg string) {
 	c.Error(errors.New(msg))
+	log.Println(msg)
 }
 func GinErrorFrom(c *gin.Context, msg string, err error) {
 	c.Error(err)
 	c.Error(errors.New(msg))
+	log.Println(msg)
 }
 
 // Handler for adding a new record to the database
@@ -49,19 +51,20 @@ func AddHandler(c *gin.Context) {
 	record.MotorPositions = nil
 
 	// Connect to MongoDb
-	log.Printf("Connecting to %s", srvConfig.Config.MetaData.MongoDB.DBUri)                                          // FIX temporary config
-	client, err := mongo.Connect(context.TODO(), options.Client().ApplyURI(srvConfig.Config.MetaData.MongoDB.DBUri)) // FIX temporary config
+	log.Printf("Connecting to %s", srvConfig.Config.SpecScans.MongoDB.DBUri)
+	client, err := mongo.Connect(context.TODO(), options.Client().ApplyURI(srvConfig.Config.SpecScans.MongoDB.DBUri))
 	if err != nil {
 		GinErrorFrom(c, "Cannot connect to database", err)
 		return
 	}
+	log.Printf("Connected to %s", srvConfig.Config.SpecScans.MongoDB.DBUri)
 	defer func() {
 		if err = client.Disconnect(context.TODO()); err != nil {
 			panic(err)
 		}
 	}()
 	// Get the Mongodb collection of interest and insert the record
-	coll := client.Database(srvConfig.Config.MetaData.MongoDB.DBName).Collection(srvConfig.Config.MetaData.MongoDB.DBColl) // FIX temporary config
+	coll := client.Database(srvConfig.Config.SpecScans.MongoDB.DBName).Collection(srvConfig.Config.SpecScans.MongoDB.DBColl)
 	result, err := coll.InsertOne(context.TODO(), &record)
 	if err != nil {
 		GinErrorFrom(c, "Cannot insert record to mongodb", err)
