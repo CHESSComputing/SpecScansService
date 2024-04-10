@@ -10,6 +10,7 @@ import (
 	"github.com/gin-gonic/gin"
 
 	srvConfig "github.com/CHESSComputing/golib/config"
+	mongo "github.com/CHESSComputing/golib/mongo"
 )
 
 var _httpReadRequest *services.HttpRequest
@@ -30,6 +31,9 @@ func setupRouter() *gin.Engine {
 func Server() {
 	Verbose = srvConfig.Config.SpecScans.WebServer.Verbose // FIX temporary config
 	_httpReadRequest = services.NewHttpRequest("read", Verbose)
+
+	// Setup mongodb connection
+	mongo.InitMongoDB(srvConfig.Config.SpecScans.MongoDB.DBUri)
 
 	// setup web router and start the service
 	r := setupRouter()
