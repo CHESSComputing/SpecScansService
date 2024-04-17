@@ -20,7 +20,7 @@ FROM debian:stable-slim
 RUN mkdir -p /data
 COPY --from=go-builder /build/srv /data
 COPY --from=go-builder /build/scans.db /data
-COPY --from=go-builder /build/static /data
+COPY --from=go-builder /build/static /data/static
 LABEL org.opencontainers.image.description="FOXDEN SpecScans service"
 LABEL org.opencontainers.image.source=https://github.com/chesscomputing/specscansservice
 LABEL org.opencontainers.image.licenses=MIT
