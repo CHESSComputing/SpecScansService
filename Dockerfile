@@ -24,3 +24,4 @@ COPY --from=go-builder /build/static /data/static
 LABEL org.opencontainers.image.description="FOXDEN SpecScans service"
 LABEL org.opencontainers.image.source=https://github.com/chesscomputing/specscansservice
 LABEL org.opencontainers.image.licenses=MIT
+WORKDIR /data
