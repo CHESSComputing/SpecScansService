@@ -1,8 +1,6 @@
 package main
 
 import (
-	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"log"
@@ -10,12 +8,14 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	primitive "go.mongodb.org/mongo-driver/bson/primitive"
-	"go.mongodb.org/mongo-driver/mongo"
-	"go.mongodb.org/mongo-driver/mongo/options"
+	structtomap "github.com/Klathmon/StructToMap"
 
 	auth "github.com/CHESSComputing/golib/authz"
 	srvConfig "github.com/CHESSComputing/golib/config"
+	mongo "github.com/CHESSComputing/golib/mongo"
+	services "github.com/CHESSComputing/golib/services"
+	utils "github.com/CHESSComputing/golib/utils"
+
 )
 
 // Helper for handling errors
@@ -41,41 +41,36 @@ func AddHandler(c *gin.Context) {
 	var record Record
 	if err := c.Bind(&record); err != nil {
 		GinErrorFrom(c, "Cannot bind request body to Record", err)
-		c.String(http.StatusBadRequest, "Bad request")
+		c.String(services.ParseError, "Bad request")
+	}
+	log.Printf("New record: %v", record)
+	record_map, err := structtomap.Convert(record)
+	if err != nil {
+		GinErrorFrom(c, "Cannot convert record to map", err)
+		c.String(services.ParseError, "Record conversion error")
 	}
 
-	// Peel of motor mnemonics & positions -- these are submitted to an rdb, not
+	// Get the dataset ID and add it to the records to be submitted
+	attrs := srvConfig.Config.DID.Attributes
+	sep := srvConfig.Config.DID.Separator
+	div := srvConfig.Config.DID.Divider
+	did := utils.CreateDID(record_map, attrs, sep, div)
+	record_map["DatasetID"] = did
+	log.Printf("New record DID: %s", did)
+	motor_record := MotorRecord{
+		DatasetId: did,
+		MotorMnes: record.MotorMnes,
+		MotorPositions: record.MotorPositions}
+	// Peel off motor mnemonics & positions -- these are submitted to an rdb, not
 	// the mongodb.
-	motor_record := MotorRecord{MotorMnes: record.MotorMnes, MotorPositions: record.MotorPositions}
-	record.MotorMnes = nil
-	record.MotorPositions = nil
+	record_map["MotorMnes"] = nil
+	record_map["MotorPositions"] = nil
 
-	// Connect to MongoDb
-	log.Printf("Connecting to %s", srvConfig.Config.SpecScans.MongoDB.DBUri)
-	client, err := mongo.Connect(context.TODO(), options.Client().ApplyURI(srvConfig.Config.SpecScans.MongoDB.DBUri))
-	if err != nil {
-		GinErrorFrom(c, "Cannot connect to database", err)
-		return
-	}
-	log.Printf("Connected to %s", srvConfig.Config.SpecScans.MongoDB.DBUri)
-	defer func() {
-		if err = client.Disconnect(context.TODO()); err != nil {
-			panic(err)
-		}
-	}()
-	// Get the Mongodb collection of interest and insert the record
-	coll := client.Database(srvConfig.Config.SpecScans.MongoDB.DBName).Collection(srvConfig.Config.SpecScans.MongoDB.DBColl)
-	result, err := coll.InsertOne(context.TODO(), &record)
-	if err != nil {
-		GinErrorFrom(c, "Cannot insert record to mongodb", err)
-		return
-	}
-	rec_id := result.InsertedID.(primitive.ObjectID).Hex()
-	log.Printf("Added record to mongodb: %v (ID: %v)\n", record, rec_id)
+	// Sumnit one portion of the record to mongodb...
+	mongo_records := []map[string]any{record_map} // FIXME record is not a map[string]any...
+	mongo.Insert(srvConfig.Config.SpecScans.MongoDB.DBName, srvConfig.Config.SpecScans.MongoDB.DBColl, mongo_records)
 
 	// Now insert the motor mnes & positions record
-	motor_record.DatasetId = rec_id
-	// NB: mongoid and sqlid should be the same
 	sql_id, err := InsertMotors(motor_record)
 	if err != nil {
 		GinErrorFrom(c, "Cannot insert motor positions record", err)
@@ -83,7 +78,7 @@ func AddHandler(c *gin.Context) {
 	}
 	log.Printf("Added record to SQL db: %v (ID: %v)\n", motor_record, sql_id)
 
-	c.String(http.StatusOK, fmt.Sprintf("New record ID: %s\n", rec_id))
+	c.String(http.StatusOK, fmt.Sprintf("New record ID: %s\n", did))
 	return
 }
 
@@ -108,23 +103,49 @@ func EditHandler(c *gin.Context) {
 	return
 }
 
-// Handler for querying the database for records
+// Handler for querying the databases for records
 func SearchHandler(c *gin.Context) {
-	// Perform search using parameters from the form;
-	// get slice of matching Records
-	data, err := c.GetRawData()
-	if err != nil {
-		GinErrorFrom(c, "Cannot get query data", err)
+
+	// Parse database query from request
+	var query_request services.ServiceRequest
+	if err := c.Bind(&query_request); err != nil {
+		resp := services.Response("SpecScans", http.StatusInternalServerError, services.ParseError, err)
+		c.JSON(http.StatusInternalServerError, resp)
 		return
 	}
-	var selectors struct{}
-	if err := json.Unmarshal(data, &selectors); err != nil {
-		GinErrorFrom(c, "Cannot decode body of request as JSON", err)
+	// Get all attributes we need for querying the mongodb
+	query := query_request.ServiceQuery.Query
+	idx := query_request.ServiceQuery.Idx
+	limit := query_request.ServiceQuery.Limit
+
+	// Get query string as map of values
+	query_map, err := ParseQuery(query)
+	if err != nil {
+		resp := services.Response("SpecScans", http.StatusInternalServerError, services.ParseError, err)
+		c.JSON(http.StatusInternalServerError, resp)
+		return
 	}
 
-	log.Printf("Placeholder: Search database with selectors: %v\n", selectors)
-	var records []Record
-	log.Printf("Matching records: %v\n", records)
+	// Prepare to query both databases separately
+	mongo_query, motor_query := DecomposeQuery(query_map)
+
+	// Query the mongodb
+	var records []map[string]any
+	nrecords := 0
+	if query_map != nil {
+		nrecords = mongo.Count(srvConfig.Config.SpecScans.MongoDB.DBName, srvConfig.Config.SpecScans.MongoDB.DBColl, mongo_query)
+		records = mongo.Get(srvConfig.Config.SpecScans.MongoDB.DBName, srvConfig.Config.SpecScans.MongoDB.DBColl, mongo_query, idx, limit)
+	}
+	if Verbose > 0 {
+		log.Printf("spec %v nrecords %d return idx=%d limit=%d", mongo_query, nrecords, idx, limit)
+	}
+
+	if motor_query != "" {
+		//motor_records, err := QueryMotorPositions(motor_query)
+	}
+
+	// TODO: Aggregate results from both dbs
+
 	c.JSON(http.StatusOK, records)
 	return
 }

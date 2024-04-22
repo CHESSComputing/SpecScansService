@@ -2,10 +2,7 @@ package main
 
 import (
 	"database/sql"
-	"fmt"
 	"log"
-	"strconv"
-	"strings"
 	"sync"
 
 	_ "github.com/mattn/go-sqlite3"
@@ -39,41 +36,54 @@ func InitMotorsDb() {
 	}
 	log.Println("Pinged motors db")
 
-	// Create motors table if needed
-	_, err = db.Exec(`
-CREATE TABLE IF NOT EXISTS motors (
-DatasetId      TEXT                NOT NULL PRIMARY KEY,
-MotorMnes      TEXT VARARRAY[100]  NOT NULL,
-MotorPositions FLOAT VARARRAY[100] NOT NULL
-);`)
-	if err != nil {
-		log.Println(err)
-	} else {
-		log.Println("motorsdb motors table exists")
-	}
 	MotorsDb = SafeDb{db: db}
 }
 
-func InsertMotors(r MotorRecord) (int, error) {
+func InsertMotors(r MotorRecord) (int64, error) {
+	// Insert the given motor record to the three tables that compose the static
+	// motor positions database.
 	log.Printf("Inserting motor record: %v", r)
-	// Format array data types for inserting w/ SQL syntax
-	motor_mnes := []string{}
-	motor_positions := []string{}
-	for i := 0; i < len(r.MotorMnes); i++ {
-		motor_mnes = append(motor_mnes, "\""+r.MotorMnes[i]+"\"")
-		motor_positions = append(motor_positions, strconv.FormatFloat(r.MotorPositions[i], 'f', -1, 64))
-	}
-	motor_mnes_value := "'{" + strings.Join(motor_mnes, ",") + "}'"
-	motor_positions_value := "'{" + strings.Join(motor_positions, ",") + "}'"
-	exec_command := fmt.Sprintf("INSERT INTO motors VALUES(\"%s\",%s,%s);\n", r.DatasetId, motor_mnes_value, motor_positions_value)
-	res, err := MotorsDb.db.Exec(exec_command)
+	result, err := MotorsDb.db.Exec("INSERT INTO DID (did) VALUES (?)", r.DatasetId)
 	if err != nil {
-		log.Printf("Could not insert record: %v", r)
-		return 0, err
+		log.Printf("Could not insert record to DID table; error: %v", err)
+		return -1, err
 	}
-	var id int64
-	if id, err = res.LastInsertId(); err != nil {
-		return 0, err
+	dataset_id, err := result.LastInsertId()
+	if err != nil {
+		log.Printf("Could not get ID of new record in DID; error: %v", err)
+		return dataset_id, err
 	}
-	return int(id), nil
+	var motor_id int64
+	for i := 0; i < len(r.MotorMnes); i++ {
+		result, err = MotorsDb.db.Exec("INSERT INTO MotorMnes (dataset_id, motor_mne) VALUES (?, ?)", dataset_id, r.MotorMnes[i])
+		if err != nil {
+			log.Printf("Could not insert record to MotorMnes table; error: %v", err)
+			continue;
+		}
+		motor_id, err = result.LastInsertId()
+		if err != nil {
+			log.Printf("Could not get ID of new record in MotorMnes; error: %v", err)
+			continue;
+		}
+		result, err = MotorsDb.db.Exec("INSERT INTO MotorPositions (motor_id, motor_position) VALUES (?, ?)", motor_id, r.MotorPositions[i])
+		if err != nil {
+			log.Printf("Could not insert record to MotorPositions table; error: %v", err)
+		}
+	}
+	return dataset_id, nil
+}
+
+func QueryMotorPosition(mne string, pos float64) []MotorRecord {
+	// Return a slice of complete motor position records for all the datasets
+	// which included the given motor mnemonic and match at the given position.
+	var motor_records []MotorRecord
+	rows, err := MotorsDb.db.Query("SELECT D.did group_concat(M.motor_mne), group_concat(P.motor_position) FROM MotorPositions as P JOIN MotorMnes AS M ON M.motor_id=P.motor_id JOIN DID AS D ON D.dataset_id=M.dataset_id WHERE M.Motor_mne=? AND P.motor_position=? GROUP BY D.did", mne, pos)
+	var motor_record MotorRecord
+	for rows.Next() {
+		err = rows.Scan(&motor_record.DatasetId, &motor_record.MotorMnes, &motor_record.MotorPositions)
+		if err != nil {
+			log.Printf("Could not get a motor positions record from a row of SQL results. error: %v", err)
+		}
+	}
+	return motor_records
 }
