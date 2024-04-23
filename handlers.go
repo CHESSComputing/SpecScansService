@@ -15,7 +15,6 @@ import (
 	mongo "github.com/CHESSComputing/golib/mongo"
 	services "github.com/CHESSComputing/golib/services"
 	utils "github.com/CHESSComputing/golib/utils"
-
 )
 
 // Helper for handling errors
@@ -58,8 +57,8 @@ func AddHandler(c *gin.Context) {
 	record_map["DatasetID"] = did
 	log.Printf("New record DID: %s", did)
 	motor_record := MotorRecord{
-		DatasetId: did,
-		MotorMnes: record.MotorMnes,
+		DatasetId:      did,
+		MotorMnes:      record.MotorMnes,
 		MotorPositions: record.MotorPositions}
 	// Peel off motor mnemonics & positions -- these are submitted to an rdb, not
 	// the mongodb.
@@ -119,29 +118,31 @@ func SearchHandler(c *gin.Context) {
 	limit := query_request.ServiceQuery.Limit
 
 	// Get query string as map of values
-	query_map, err := ParseQuery(query)
+	queries, err := QLM.ServiceQueries(query)
 	if err != nil {
 		resp := services.Response("SpecScans", http.StatusInternalServerError, services.ParseError, err)
 		c.JSON(http.StatusInternalServerError, resp)
 		return
 	}
-
-	// Prepare to query both databases separately
-	mongo_query, motor_query := DecomposeQuery(query_map)
+	log.Printf("Mongo query: %v", queries["Mongo"])
+	log.Printf("SQL query: %v", queries["SQL"])
 
 	// Query the mongodb
 	var records []map[string]any
 	nrecords := 0
-	if query_map != nil {
-		nrecords = mongo.Count(srvConfig.Config.SpecScans.MongoDB.DBName, srvConfig.Config.SpecScans.MongoDB.DBColl, mongo_query)
-		records = mongo.Get(srvConfig.Config.SpecScans.MongoDB.DBName, srvConfig.Config.SpecScans.MongoDB.DBColl, mongo_query, idx, limit)
+	if queries["Mongo"] != nil {
+		nrecords = mongo.Count(srvConfig.Config.SpecScans.MongoDB.DBName, srvConfig.Config.SpecScans.MongoDB.DBColl, queries["Mongo"])
+		records = mongo.Get(srvConfig.Config.SpecScans.MongoDB.DBName, srvConfig.Config.SpecScans.MongoDB.DBColl, queries["Mongo"], idx, limit)
 	}
 	if Verbose > 0 {
-		log.Printf("spec %v nrecords %d return idx=%d limit=%d", mongo_query, nrecords, idx, limit)
+		log.Printf("spec %v nrecords %d return idx=%d limit=%d", queries["Mongo"], nrecords, idx, limit)
 	}
 
-	if motor_query != "" {
-		//motor_records, err := QueryMotorPositions(motor_query)
+	if queries["SQL"] != nil {
+		mne := queries["SQL"]["motor"].(string)
+		pos := queries["SQL"]["position"].(float64)
+		motor_records := QueryMotorPosition(mne, pos)
+		log.Printf("Matching motor records: %v", motor_records)
 	}
 
 	// TODO: Aggregate results from both dbs
