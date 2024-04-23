@@ -134,14 +134,38 @@ func SearchHandler(c *gin.Context) {
 		log.Printf("spec %v nrecords %d return idx=%d limit=%d", queries["Mongo"], nrecords, idx, limit)
 	}
 
+	// Query the SQL db of motor positions
 	if queries["SQL"] != nil {
 		mne := queries["SQL"]["motor"].(string)
 		pos := queries["SQL"]["position"].(float64)
 		motor_records := QueryMotorPosition(mne, pos)
-		log.Printf("Matching motor records: %v", motor_records)
+		// Aggregate intersection of results from both dbs
+		var intersection_records []map[string]any
+		for _, record := range records {
+			did := record["DatasetId"].(string)
+			for _, motor_record := range motor_records {
+				if motor_record.DatasetId == did {
+					record["MotorMnes"] = motor_record.MotorMnes
+					record["MotorPositions"] = motor_record.MotorPositions
+					intersection_records = append(intersection_records, record)
+					break
+				}
+			}
+		}
+	} else {
+		// Complete the matching records with motor positions
+		var did string
+		for _, record := range records {
+			did = record["DatasetId"].(string)
+			motor_record, err := GetMotorRecord(did)
+			if err != nil {
+				log.Printf("Motor positions not found for DID %v", did)
+				continue
+			}
+			record["MotorMnes"] = motor_record.MotorMnes
+			record["MotorPositions"] = motor_record.MotorPositions
+		}
 	}
-
-	// TODO: Aggregate results from both dbs
 
 	c.JSON(http.StatusOK, records)
 	return

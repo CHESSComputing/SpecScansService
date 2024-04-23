@@ -95,41 +95,46 @@ GROUP BY D.did;`, mne, pos)
 		log.Printf("Could not query motor positions database; error: %v", err)
 		return motor_records
 	}
-	var motor_record MotorRecord
-	var motor_mnes, motor_positions string
-	var motor_positions_string_slice []string
+	return getMotorRecords(rows)
+}
+
+func GetMotorRecord(did string) (MotorRecord, error) {
+	rows, err := MotorsDb.db.Query("SELECT D.did, group_concat(M.motor_mne), group_concat(P.motor_position) FROM MotorPositions as P JOIN MotorMnes AS M ON M.motor_id=P.motor_id JOIN DID AS D ON D.dataset_id=M.dataset_id WHERE D.did=? GROUP BY D.did", did)
+	if err != nil {
+		log.Printf("Could not query motor positions database; error: %v", err)
+		return MotorRecord{}, err
+	}
+	return getMotorRecords(rows)[0], nil
+}
+
+func getMotorRecords(rows *sql.Rows) []MotorRecord {
+	// Helper for parsing grouped results of sql query
+	var motor_records []MotorRecord
+	rows.Next()
+	motor_record := getMotorRecord(rows)
+	motor_records = append(motor_records, motor_record)
 	for rows.Next() {
-		err = rows.Scan(&motor_record.DatasetId, &motor_mnes, &motor_positions)
-		if err != nil {
-			log.Printf("Could not get a motor positions record from a row of SQL results. error: %v", err)
-		}
-		log.Printf("motor_mnes: %v", motor_mnes)
-		log.Printf("motor_positions: %v", motor_positions)
-		motor_record.MotorMnes = strings.Split(motor_mnes, ",")
-		motor_positions_string_slice = strings.Split(motor_positions, ",")
-		motor_positions_float_slice := make([]float64, 0, len(motor_positions_string_slice))
-		for _, position := range motor_positions_string_slice {
-			position, _ := strconv.ParseFloat(position, 64)
-			motor_positions_float_slice = append(motor_positions_float_slice, position)
-		}
-		motor_record.MotorPositions = motor_positions_float_slice
+		motor_record := getMotorRecord(rows)
 		motor_records = append(motor_records, motor_record)
 	}
 	return motor_records
 }
 
-func GetMotorRecord(did string) (MotorRecord, error) {
-	var motor_record MotorRecord
-	rows, err := MotorsDb.db.Query("SELECT D.did, group_concat(M.motor_mne), group_concat(P.motor_position) FROM MotorPositions as P JOIN MotorMnes AS M ON M.motor_id=P.motor_id JOIN DID AS D ON D.dataset_id=M.dataset_id WHERE D.did=? GROUP BY D.did", did)
+func getMotorRecord(rows *sql.Rows) MotorRecord {
+	// Helper for parsing grouped results of sql query at the current cursor position only
+	motor_record := MotorRecord{}
+	_motor_mnes, _motor_positions := "", ""
+	err := rows.Scan(&motor_record.DatasetId, &_motor_mnes, &_motor_positions)
 	if err != nil {
-		log.Printf("Could not query motor positions database; error: %v", err)
-		return motor_record, err
+		log.Printf("Could not get a MotorRecord from a row of SQL results. error: %v", err)
+		return motor_record
 	}
-	// Since did column is unique in the DID table, there is at most one row of results.
-	rows.Next()
-	var motor_mnes, motor_positions string
-	err = rows.Scan(&motor_record.DatasetId, &motor_mnes, &motor_positions)
-	log.Printf("motor_mnes: %v", motor_mnes)
-	log.Printf("motor_positions: %v", motor_positions)
-	return motor_record, err
+	motor_record.MotorMnes = strings.Split(_motor_mnes, ",")
+	motor_positions := make([]float64, 0, len(motor_record.MotorMnes))
+	for _, position := range strings.Split(_motor_positions, ",") {
+		position, _ := strconv.ParseFloat(position, 64)
+		motor_positions = append(motor_positions, position)
+	}
+	motor_record.MotorPositions = motor_positions
+	return motor_record
 }
