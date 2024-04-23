@@ -25,28 +25,20 @@ func HTTPError(label, msg string, w http.ResponseWriter) {
 	return
 }
 
-func GinError(c *gin.Context, msg string) {
-	c.Error(errors.New(msg))
-	log.Println(msg)
-}
-func GinErrorFrom(c *gin.Context, msg string, err error) {
-	c.Error(err)
-	c.Error(errors.New(msg))
-	log.Println(msg)
-}
-
 // Handler for adding a new record to the database
 func AddHandler(c *gin.Context) {
 	var record Record
 	if err := c.Bind(&record); err != nil {
-		GinErrorFrom(c, "Cannot bind request body to Record", err)
-		c.String(services.ParseError, "Bad request")
+		resp := services.Response("SpecScans", http.StatusInternalServerError, services.BindError, err)
+		c.JSON(http.StatusInternalServerError, resp)
+		return
 	}
 	log.Printf("New record: %v", record)
 	record_map, err := structtomap.Convert(record)
 	if err != nil {
-		GinErrorFrom(c, "Cannot convert record to map", err)
-		c.String(services.ParseError, "Record conversion error")
+		resp := services.Response("SpecScans", http.StatusInternalServerError, services.ParseError, err)
+		c.JSON(http.StatusInternalServerError, resp)
+		return
 	}
 
 	// Get the dataset ID and add it to the records to be submitted
@@ -72,7 +64,8 @@ func AddHandler(c *gin.Context) {
 	// Now insert the motor mnes & positions record
 	sql_id, err := InsertMotors(motor_record)
 	if err != nil {
-		GinErrorFrom(c, "Cannot insert motor positions record", err)
+		resp := services.Response("SpecScans", http.StatusInternalServerError, services.InsertError, err)
+		c.JSON(http.StatusInternalServerError, resp)
 		return
 	}
 	log.Printf("Added record to SQL db: %v (ID: %v)\n", motor_record, sql_id)
@@ -86,13 +79,16 @@ func EditHandler(c *gin.Context) {
 	// Get ID of record to edit
 	id := c.Param("id")
 	if id == "" {
-		GinError(c, "No record id in form")
+		err := errors.New("ID of record to edit not found")
+		resp := services.Response("SpecScans", http.StatusInternalServerError, services.FormDataError, err)
+		c.JSON(http.StatusInternalServerError, resp)
 		return
 	}
 	// Ensure requesting user is allowed to edit this record
 	username, err := auth.UserCredentials(c.Request)
 	if err != nil {
-		GinErrorFrom(c, "Cannot determine username", err)
+		resp := services.Response("SpecScans", http.StatusInternalServerError, services.CredentialsError, err)
+		c.JSON(http.StatusInternalServerError, resp)
 		return
 	}
 	// Check with BeamPass: user must associated with the BTR of this record
