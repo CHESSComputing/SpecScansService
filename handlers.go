@@ -46,7 +46,7 @@ func AddHandler(c *gin.Context) {
 	sep := srvConfig.Config.DID.Separator
 	div := srvConfig.Config.DID.Divider
 	did := utils.CreateDID(record_map, attrs, sep, div)
-	record_map["DatasetID"] = did
+	record_map["DatasetId"] = did
 	log.Printf("New record DID: %s", did)
 	motor_record := MotorRecord{
 		DatasetId:      did,

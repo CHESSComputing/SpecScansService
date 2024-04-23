@@ -1,6 +1,7 @@
 package main
 
 type Record struct {
+	DatasetId      string
 	SpecFile       string    `json:"specfile"`
 	ScanNumber     int       `json:"scannumber"`
 	Command        string    `json:"command"`
