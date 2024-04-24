@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"database/sql"
+	"errors"
 	"log"
 	"path"
 	"strconv"
@@ -30,6 +31,7 @@ type MotorRecord struct {
 }
 
 type MotorQueryParams struct {
+	DatasetId string
 	MotorMne string
 	MotorPosition float64
 }
@@ -89,22 +91,11 @@ func QueryMotorPosition(mne string, pos float64) []MotorRecord {
 	var motor_records []MotorRecord
 
 	// Use a template to get the appropriate SELECT statement to execute
-	query_params := MotorQueryParams{MotorMne: mne, MotorPosition: pos}
-	tmpl_file := "query_position.sql"
-	tmpl, err := template.New(tmpl_file).ParseFiles(path.Join(srvConfig.Config.SpecScans.WebServer.StaticDir, tmpl_file))
+	statement, err := getSqlStatement("query_position.sql", MotorQueryParams{MotorMne: mne, MotorPosition: pos})
 	if err != nil {
-		log.Printf("Could not load select statement template; error: %v", err)
+		log.Printf("Could not get appropriate SQL query statement; error: %v", err)
 		return motor_records
 	}
-	statement := ""
-	buf := bytes.NewBufferString(statement)
-	err = tmpl.Execute(buf, query_params)
-	if err != nil {
-		log.Printf("Could not execute query statement template; error: %v", err)
-		return motor_records
-	}
-	statement = buf.String()
-
 	// Query the DB
 	rows, err := MotorsDb.db.Query(statement)
 	if err != nil {
@@ -115,9 +106,14 @@ func QueryMotorPosition(mne string, pos float64) []MotorRecord {
 }
 
 func GetMotorRecord(did string) (MotorRecord, error) {
-	rows, err := MotorsDb.db.Query("SELECT D.did, group_concat(M.motor_mne), group_concat(P.motor_position) FROM MotorPositions as P JOIN MotorMnes AS M ON M.motor_id=P.motor_id JOIN DID AS D ON D.dataset_id=M.dataset_id WHERE D.did=? GROUP BY D.did", did)
+	// Use a template to get the appropriate SELECT statement to execute
+	statement, err := getSqlStatement("query_did.sql", MotorQueryParams{DatasetId: did})
 	if err != nil {
-		log.Printf("Could not query motor positions database; error: %v", err)
+		return MotorRecord{}, err
+	}
+	// Query the DB
+	rows, err := MotorsDb.db.Query(statement)
+	if err != nil {
 		return MotorRecord{}, err
 	}
 	return getMotorRecords(rows)[0], nil
@@ -153,4 +149,22 @@ func getMotorRecord(rows *sql.Rows) MotorRecord {
 	}
 	motor_record.MotorPositions = motor_positions
 	return motor_record
+}
+
+func getSqlStatement(tmpl_file string, params MotorQueryParams) (string, error) {
+	tmpl, err := template.New(tmpl_file).ParseFiles(path.Join(srvConfig.Config.SpecScans.WebServer.StaticDir, tmpl_file))
+	if err != nil {
+		return "", err
+	}
+	statement := ""
+	buf := bytes.NewBufferString(statement)
+	err = tmpl.Execute(buf, params)
+	if err != nil {
+		return "", err
+	}
+	statement = buf.String()
+	if statement == "" {
+		return "", errors.New("Statement is empty")
+	}
+	return statement, nil
 }
