@@ -30,10 +30,15 @@ type MotorRecord struct {
 	MotorPositions []float64
 }
 
-type MotorQueryParams struct {
-	DatasetId string
-	MotorMne string
-	MotorPosition float64
+type MotorPositionQuery struct {
+	Mne   string
+	Exact []float64
+	Min   float64
+	Max   float64
+}
+type MotorsDbQuery struct {
+	Dids                 []string
+	MotorPositionQueries []MotorPositionQuery
 }
 
 func InitMotorsDb() {
@@ -86,37 +91,35 @@ func InsertMotors(r MotorRecord) (int64, error) {
 }
 
 func QueryMotorPosition(mne string, pos float64) []MotorRecord {
-	// Return a slice of complete motor position records for all the datasets
-	// which included the given motor mnemonic and match at the given position.
-	var motor_records []MotorRecord
+	query := MotorsDbQuery{
+		MotorPositionQueries: []MotorPositionQuery{
+			MotorPositionQuery{
+				Mne:   mne,
+				Exact: []float64{pos},
+			},
+		},
+	}
+	return queryMotorsDb(query)
+}
 
-	// Use a template to get the appropriate SELECT statement to execute
-	statement, err := getSqlStatement("query_position.sql", MotorQueryParams{MotorMne: mne, MotorPosition: pos})
+func GetMotorRecord(did string) (MotorRecord, error) {
+	query := MotorsDbQuery{Dids: []string{did}}
+	return queryMotorsDb(query)[0], nil
+}
+
+func queryMotorsDb(query MotorsDbQuery) []MotorRecord {
+	var motor_records []MotorRecord
+	statement, err := getSqlStatement("query_motorsdb.sql", query)
 	if err != nil {
 		log.Printf("Could not get appropriate SQL query statement; error: %v", err)
 		return motor_records
 	}
-	// Query the DB
 	rows, err := MotorsDb.db.Query(statement)
 	if err != nil {
 		log.Printf("Could not query motor positions database; error: %v", err)
 		return motor_records
 	}
 	return getMotorRecords(rows)
-}
-
-func GetMotorRecord(did string) (MotorRecord, error) {
-	// Use a template to get the appropriate SELECT statement to execute
-	statement, err := getSqlStatement("query_did.sql", MotorQueryParams{DatasetId: did})
-	if err != nil {
-		return MotorRecord{}, err
-	}
-	// Query the DB
-	rows, err := MotorsDb.db.Query(statement)
-	if err != nil {
-		return MotorRecord{}, err
-	}
-	return getMotorRecords(rows)[0], nil
 }
 
 func getMotorRecords(rows *sql.Rows) []MotorRecord {
@@ -151,7 +154,7 @@ func getMotorRecord(rows *sql.Rows) MotorRecord {
 	return motor_record
 }
 
-func getSqlStatement(tmpl_file string, params MotorQueryParams) (string, error) {
+func getSqlStatement(tmpl_file string, params MotorsDbQuery) (string, error) {
 	tmpl, err := template.New(tmpl_file).ParseFiles(path.Join(srvConfig.Config.SpecScans.WebServer.StaticDir, tmpl_file))
 	if err != nil {
 		return "", err
