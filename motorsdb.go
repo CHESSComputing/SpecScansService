@@ -1,11 +1,14 @@
 package main
 
 import (
+	"bytes"
 	"database/sql"
 	"log"
+	"path"
 	"strconv"
 	"strings"
 	"sync"
+	"text/template"
 
 	_ "github.com/mattn/go-sqlite3"
 
@@ -24,6 +27,11 @@ type MotorRecord struct {
 	DatasetId      string
 	MotorMnes      []string
 	MotorPositions []float64
+}
+
+type MotorQueryParams struct {
+	MotorMne string
+	MotorPosition float64
 }
 
 func InitMotorsDb() {
@@ -79,18 +87,26 @@ func QueryMotorPosition(mne string, pos float64) []MotorRecord {
 	// Return a slice of complete motor position records for all the datasets
 	// which included the given motor mnemonic and match at the given position.
 	var motor_records []MotorRecord
-	rows, err := MotorsDb.db.Query(`
-SELECT D.did, group_concat(M.motor_mne), group_concat(P.motor_position)
-FROM MotorPositions as P
-JOIN MotorMnes AS M ON M.motor_id=P.motor_id
-JOIN DID AS D ON D.dataset_id=M.dataset_id
-WHERE D.dataset_id IN (
-	SELECT D.dataset_id
-	FROM MotorPositions as P
-	JOIN MotorMnes AS M ON M.motor_id=P.motor_id
-	JOIN DID AS D ON D.dataset_id=M.dataset_id
-	WHERE M.motor_mne=? AND P.motor_position=?)
-GROUP BY D.did;`, mne, pos)
+
+	// Use a template to get the appropriate SELECT statement to execute
+	query_params := MotorQueryParams{MotorMne: mne, MotorPosition: pos}
+	tmpl_file := "query_position.sql"
+	tmpl, err := template.New(tmpl_file).ParseFiles(path.Join(srvConfig.Config.SpecScans.WebServer.StaticDir, tmpl_file))
+	if err != nil {
+		log.Printf("Could not load select statement template; error: %v", err)
+		return motor_records
+	}
+	statement := ""
+	buf := bytes.NewBufferString(statement)
+	err = tmpl.Execute(buf, query_params)
+	if err != nil {
+		log.Printf("Could not execute query statement template; error: %v", err)
+		return motor_records
+	}
+	statement = buf.String()
+
+	// Query the DB
+	rows, err := MotorsDb.db.Query(statement)
 	if err != nil {
 		log.Printf("Could not query motor positions database; error: %v", err)
 		return motor_records
