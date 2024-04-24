@@ -152,6 +152,7 @@ func SearchHandler(c *gin.Context) {
 				}
 			}
 		}
+		records = intersection_records
 	} else {
 		// Complete the matching records with motor positions
 		var did string
@@ -159,7 +160,7 @@ func SearchHandler(c *gin.Context) {
 			did = record["DatasetId"].(string)
 			motor_record, err := GetMotorRecord(did)
 			if err != nil {
-				log.Printf("Motor positions not found for DID %v", did)
+				log.Printf("Motor positions not found for DID %v; error: %v", did, err)
 				continue
 			}
 			record["MotorMnes"] = motor_record.MotorMnes
