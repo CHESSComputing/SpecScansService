@@ -1,8 +1,6 @@
 package main
 
 import (
-	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"log"
@@ -10,12 +8,12 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	primitive "go.mongodb.org/mongo-driver/bson/primitive"
-	"go.mongodb.org/mongo-driver/mongo"
-	"go.mongodb.org/mongo-driver/mongo/options"
+	structtomap "github.com/Klathmon/StructToMap"
 
 	auth "github.com/CHESSComputing/golib/authz"
 	srvConfig "github.com/CHESSComputing/golib/config"
+	mongo "github.com/CHESSComputing/golib/mongo"
+	services "github.com/CHESSComputing/golib/services"
 )
 
 // Helper for handling errors
@@ -26,61 +24,50 @@ func HTTPError(label, msg string, w http.ResponseWriter) {
 	return
 }
 
-func GinError(c *gin.Context, msg string) {
-	c.Error(errors.New(msg))
-}
-func GinErrorFrom(c *gin.Context, msg string, err error) {
-	c.Error(err)
-	c.Error(errors.New(msg))
-}
-
 // Handler for adding a new record to the database
 func AddHandler(c *gin.Context) {
 	var record Record
 	if err := c.Bind(&record); err != nil {
-		GinErrorFrom(c, "Cannot bind request body to Record", err)
-		c.String(http.StatusBadRequest, "Bad request")
+		resp := services.Response("SpecScans", http.StatusInternalServerError, services.BindError, err)
+		c.JSON(http.StatusInternalServerError, resp)
+		return
+	}
+	log.Printf("New record: %v", record)
+	record_map, err := structtomap.Convert(record)
+	if err != nil {
+		resp := services.Response("SpecScans", http.StatusInternalServerError, services.ParseError, err)
+		c.JSON(http.StatusInternalServerError, resp)
+		return
 	}
 
-	// Peel of motor mnemonics & positions -- these are submitted to an rdb, not
+	// Get the ScanId and add it to the records to be submitted
+	sid := uint64(record_map["StartTime"].(float64))
+	record_map["ScanId"] = sid
+	log.Printf("New record ScanId: %d", sid)
+	motor_record := MotorRecord{
+		ScanId:         sid,
+		MotorMnes:      record.MotorMnes,
+		MotorPositions: record.MotorPositions}
+
+	// Peel off motor mnemonics & positions -- these are submitted to an rdb, not
 	// the mongodb.
-	motor_record := MotorRecord{MotorMnes: record.MotorMnes, MotorPositions: record.MotorPositions}
-	record.MotorMnes = nil
-	record.MotorPositions = nil
+	record_map["MotorMnes"] = nil
+	record_map["MotorPositions"] = nil
 
-	// Connect to MongoDb
-	log.Printf("Connecting to %s", srvConfig.Config.MetaData.MongoDB.DBUri)                                          // FIX temporary config
-	client, err := mongo.Connect(context.TODO(), options.Client().ApplyURI(srvConfig.Config.MetaData.MongoDB.DBUri)) // FIX temporary config
-	if err != nil {
-		GinErrorFrom(c, "Cannot connect to database", err)
-		return
-	}
-	defer func() {
-		if err = client.Disconnect(context.TODO()); err != nil {
-			panic(err)
-		}
-	}()
-	// Get the Mongodb collection of interest and insert the record
-	coll := client.Database(srvConfig.Config.MetaData.MongoDB.DBName).Collection(srvConfig.Config.MetaData.MongoDB.DBColl) // FIX temporary config
-	result, err := coll.InsertOne(context.TODO(), &record)
-	if err != nil {
-		GinErrorFrom(c, "Cannot insert record to mongodb", err)
-		return
-	}
-	rec_id := result.InsertedID.(primitive.ObjectID).Hex()
-	log.Printf("Added record to mongodb: %v (ID: %v)\n", record, rec_id)
+	// Submit one portion of the record to mongodb...
+	mongo_records := []map[string]any{record_map} // FIXME record is not a map[string]any...
+	mongo.Insert(srvConfig.Config.SpecScans.MongoDB.DBName, srvConfig.Config.SpecScans.MongoDB.DBColl, mongo_records)
 
 	// Now insert the motor mnes & positions record
-	motor_record.DatasetId = rec_id
-	// NB: mongoid and sqlid should be the same
 	sql_id, err := InsertMotors(motor_record)
 	if err != nil {
-		GinErrorFrom(c, "Cannot insert motor positions record", err)
+		resp := services.Response("SpecScans", http.StatusInternalServerError, services.InsertError, err)
+		c.JSON(http.StatusInternalServerError, resp)
 		return
 	}
 	log.Printf("Added record to SQL db: %v (ID: %v)\n", motor_record, sql_id)
 
-	c.String(http.StatusOK, fmt.Sprintf("New record ID: %s\n", rec_id))
+	c.String(http.StatusOK, fmt.Sprintf("New record ScanId: %d\n", sid))
 	return
 }
 
@@ -89,13 +76,16 @@ func EditHandler(c *gin.Context) {
 	// Get ID of record to edit
 	id := c.Param("id")
 	if id == "" {
-		GinError(c, "No record id in form")
+		err := errors.New("ID of record to edit not found")
+		resp := services.Response("SpecScans", http.StatusInternalServerError, services.FormDataError, err)
+		c.JSON(http.StatusInternalServerError, resp)
 		return
 	}
 	// Ensure requesting user is allowed to edit this record
 	username, err := auth.UserCredentials(c.Request)
 	if err != nil {
-		GinErrorFrom(c, "Cannot determine username", err)
+		resp := services.Response("SpecScans", http.StatusInternalServerError, services.CredentialsError, err)
+		c.JSON(http.StatusInternalServerError, resp)
 		return
 	}
 	// Check with BeamPass: user must associated with the BTR of this record
@@ -105,23 +95,75 @@ func EditHandler(c *gin.Context) {
 	return
 }
 
-// Handler for querying the database for records
+// Handler for querying the databases for records
 func SearchHandler(c *gin.Context) {
-	// Perform search using parameters from the form;
-	// get slice of matching Records
-	data, err := c.GetRawData()
-	if err != nil {
-		GinErrorFrom(c, "Cannot get query data", err)
+
+	// Parse database query from request
+	var query_request services.ServiceRequest
+	if err := c.Bind(&query_request); err != nil {
+		resp := services.Response("SpecScans", http.StatusInternalServerError, services.ParseError, err)
+		c.JSON(http.StatusInternalServerError, resp)
 		return
 	}
-	var selectors struct{}
-	if err := json.Unmarshal(data, &selectors); err != nil {
-		GinErrorFrom(c, "Cannot decode body of request as JSON", err)
+	// Get all attributes we need for querying the mongodb
+	query := query_request.ServiceQuery.Query
+	idx := query_request.ServiceQuery.Idx
+	limit := query_request.ServiceQuery.Limit
+
+	// Get query string as map of values
+	queries, err := QLM.ServiceQueries(query)
+	if err != nil {
+		resp := services.Response("SpecScans", http.StatusInternalServerError, services.ParseError, err)
+		c.JSON(http.StatusInternalServerError, resp)
+		return
+	}
+	log.Printf("Mongo query: %v", queries["Mongo"])
+	log.Printf("SQL query: %v", queries["SQL"])
+
+	// Query the mongodb
+	var records []map[string]any
+	nrecords := 0
+	if queries["Mongo"] != nil {
+		nrecords = mongo.Count(srvConfig.Config.SpecScans.MongoDB.DBName, srvConfig.Config.SpecScans.MongoDB.DBColl, queries["Mongo"])
+		records = mongo.Get(srvConfig.Config.SpecScans.MongoDB.DBName, srvConfig.Config.SpecScans.MongoDB.DBColl, queries["Mongo"], idx, limit)
+	}
+	if Verbose > 0 {
+		log.Printf("spec %v nrecords %d return idx=%d limit=%d", queries["Mongo"], nrecords, idx, limit)
 	}
 
-	log.Printf("Placeholder: Search database with selectors: %v\n", selectors)
-	var records []Record
-	log.Printf("Matching records: %v\n", records)
+	// Query the SQL db of motor positions
+	if queries["SQL"] != nil {
+		mne := queries["SQL"]["motor"].(string)
+		pos := queries["SQL"]["position"].(float64)
+		motor_records := QueryMotorPosition(mne, pos)
+		// Aggregate intersection of results from both dbs
+		var intersection_records []map[string]any
+		for _, record := range records {
+			sid := uint64(record["ScanId"].(int64))
+			for _, motor_record := range motor_records {
+				if motor_record.ScanId == sid {
+					record["MotorMnes"] = motor_record.MotorMnes
+					record["MotorPositions"] = motor_record.MotorPositions
+					intersection_records = append(intersection_records, record)
+					break
+				}
+			}
+		}
+		records = intersection_records
+	} else {
+		// Complete the matching records with motor positions
+		for _, record := range records {
+			sid := uint64(record["ScanId"].(int64))
+			motor_record, err := GetMotorRecord(sid)
+			if err != nil {
+				log.Printf("Motor positions not found for ScanId %v; error: %v", sid, err)
+				continue
+			}
+			record["MotorMnes"] = motor_record.MotorMnes
+			record["MotorPositions"] = motor_record.MotorPositions
+		}
+	}
+
 	c.JSON(http.StatusOK, records)
 	return
 }

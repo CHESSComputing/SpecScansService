@@ -10,10 +10,13 @@ import (
 	"github.com/gin-gonic/gin"
 
 	srvConfig "github.com/CHESSComputing/golib/config"
+	mongo "github.com/CHESSComputing/golib/mongo"
+	ql "github.com/CHESSComputing/golib/ql"
 )
 
 var _httpReadRequest *services.HttpRequest
 var Verbose int
+var QLM ql.QLManager
 
 // helper function to setup our router
 func setupRouter() *gin.Engine {
@@ -30,6 +33,14 @@ func setupRouter() *gin.Engine {
 func Server() {
 	Verbose = srvConfig.Config.SpecScans.WebServer.Verbose // FIX temporary config
 	_httpReadRequest = services.NewHttpRequest("read", Verbose)
+
+	// Setup mongodb connection
+	mongo.InitMongoDB(srvConfig.Config.SpecScans.MongoDB.DBUri)
+
+	// Initialize map of component databased & query keys belonging to each one
+	// TODO: add field for QLMFile in golib/config.SpecScans, then use srvConfig.Config.SpecScans.QLMFile as the arg to QLM.Init
+	// (use of srvConfig.Config.SpecScans.WebServer.LimiterHeader is just temporary)
+	QLM.Init(srvConfig.Config.SpecScans.WebServer.LimiterHeader)
 
 	// setup web router and start the service
 	r := setupRouter()

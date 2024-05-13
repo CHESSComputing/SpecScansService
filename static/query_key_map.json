@@ -1,0 +1,20 @@
+{
+  "Mongo": [
+    "ScanId",
+    "DatasetId",
+    "Cycle",
+    "Station",
+    "Btr",
+    "SpecFile",
+    "ScanNumber",
+    "StartTime",
+    "Command",
+    "Status",
+    "Comments",
+    "SpecVersion"
+  ],
+  "SQL": [
+    "motor",
+    "position"
+  ]
+}
