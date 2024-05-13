@@ -25,7 +25,7 @@ type SafeDb struct {
 var MotorsDb SafeDb
 
 type MotorRecord struct {
-	DatasetId      string
+	ScanId         uint64
 	MotorMnes      []string
 	MotorPositions []float64
 }
@@ -37,7 +37,7 @@ type MotorPositionQuery struct {
 	Max   float64
 }
 type MotorsDbQuery struct {
-	Dids                 []string
+	Sids                 []uint64
 	MotorPositionQueries []MotorPositionQuery
 }
 
@@ -60,19 +60,19 @@ func InsertMotors(r MotorRecord) (int64, error) {
 	// Insert the given motor record to the three tables that compose the static
 	// motor positions database.
 	log.Printf("Inserting motor record: %v", r)
-	result, err := MotorsDb.db.Exec("INSERT INTO DID (did) VALUES (?)", r.DatasetId)
+	result, err := MotorsDb.db.Exec("INSERT INTO ScanIds (sid) VALUES (?)", r.ScanId)
 	if err != nil {
-		log.Printf("Could not insert record to DID table; error: %v", err)
+		log.Printf("Could not insert record to ScanIds table; error: %v", err)
 		return -1, err
 	}
-	dataset_id, err := result.LastInsertId()
+	scan_id, err := result.LastInsertId()
 	if err != nil {
-		log.Printf("Could not get ID of new record in DID; error: %v", err)
-		return dataset_id, err
+		log.Printf("Could not get ID of new record in ScanIds; error: %v", err)
+		return scan_id, err
 	}
 	var motor_id int64
 	for i := 0; i < len(r.MotorMnes); i++ {
-		result, err = MotorsDb.db.Exec("INSERT INTO MotorMnes (dataset_id, motor_mne) VALUES (?, ?)", dataset_id, r.MotorMnes[i])
+		result, err = MotorsDb.db.Exec("INSERT INTO MotorMnes (scan_id, motor_mne) VALUES (?, ?)", scan_id, r.MotorMnes[i])
 		if err != nil {
 			log.Printf("Could not insert record to MotorMnes table; error: %v", err)
 			continue
@@ -87,7 +87,7 @@ func InsertMotors(r MotorRecord) (int64, error) {
 			log.Printf("Could not insert record to MotorPositions table; error: %v", err)
 		}
 	}
-	return dataset_id, nil
+	return scan_id, nil
 }
 
 func QueryMotorPosition(mne string, pos float64) []MotorRecord {
@@ -102,8 +102,8 @@ func QueryMotorPosition(mne string, pos float64) []MotorRecord {
 	return queryMotorsDb(query)
 }
 
-func GetMotorRecord(did string) (MotorRecord, error) {
-	query := MotorsDbQuery{Dids: []string{did}}
+func GetMotorRecord(sid uint64) (MotorRecord, error) {
+	query := MotorsDbQuery{Sids: []uint64{sid}}
 	return queryMotorsDb(query)[0], nil
 }
 
@@ -125,6 +125,8 @@ func queryMotorsDb(query MotorsDbQuery) []MotorRecord {
 func getMotorRecords(rows *sql.Rows) []MotorRecord {
 	// Helper for parsing grouped results of sql query
 	var motor_records []MotorRecord
+	// Parse the first record;
+	// need to do this outside the loop if there is only one row of results.
 	rows.Next()
 	motor_record := getMotorRecord(rows)
 	motor_records = append(motor_records, motor_record)
@@ -139,7 +141,7 @@ func getMotorRecord(rows *sql.Rows) MotorRecord {
 	// Helper for parsing grouped results of sql query at the current cursor position only
 	motor_record := MotorRecord{}
 	_motor_mnes, _motor_positions := "", ""
-	err := rows.Scan(&motor_record.DatasetId, &_motor_mnes, &_motor_positions)
+	err := rows.Scan(&motor_record.ScanId, &_motor_mnes, &_motor_positions)
 	if err != nil {
 		log.Printf("Could not get a MotorRecord from a row of SQL results. error: %v", err)
 		return motor_record

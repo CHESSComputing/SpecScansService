@@ -14,7 +14,6 @@ import (
 	srvConfig "github.com/CHESSComputing/golib/config"
 	mongo "github.com/CHESSComputing/golib/mongo"
 	services "github.com/CHESSComputing/golib/services"
-	utils "github.com/CHESSComputing/golib/utils"
 )
 
 // Helper for handling errors
@@ -41,23 +40,21 @@ func AddHandler(c *gin.Context) {
 		return
 	}
 
-	// Get the dataset ID and add it to the records to be submitted
-	attrs := srvConfig.Config.DID.Attributes
-	sep := srvConfig.Config.DID.Separator
-	div := srvConfig.Config.DID.Divider
-	did := utils.CreateDID(record_map, attrs, sep, div)
-	record_map["DatasetId"] = did
-	log.Printf("New record DID: %s", did)
+	// Get the ScanId and add it to the records to be submitted
+	sid := uint64(record_map["StartTime"].(float64))
+	record_map["ScanId"] = sid
+	log.Printf("New record ScanId: %d", sid)
 	motor_record := MotorRecord{
-		DatasetId:      did,
+		ScanId:         sid,
 		MotorMnes:      record.MotorMnes,
 		MotorPositions: record.MotorPositions}
+
 	// Peel off motor mnemonics & positions -- these are submitted to an rdb, not
 	// the mongodb.
 	record_map["MotorMnes"] = nil
 	record_map["MotorPositions"] = nil
 
-	// Sumnit one portion of the record to mongodb...
+	// Submit one portion of the record to mongodb...
 	mongo_records := []map[string]any{record_map} // FIXME record is not a map[string]any...
 	mongo.Insert(srvConfig.Config.SpecScans.MongoDB.DBName, srvConfig.Config.SpecScans.MongoDB.DBColl, mongo_records)
 
@@ -70,7 +67,7 @@ func AddHandler(c *gin.Context) {
 	}
 	log.Printf("Added record to SQL db: %v (ID: %v)\n", motor_record, sql_id)
 
-	c.String(http.StatusOK, fmt.Sprintf("New record ID: %s\n", did))
+	c.String(http.StatusOK, fmt.Sprintf("New record ScanId: %d\n", sid))
 	return
 }
 
@@ -142,9 +139,9 @@ func SearchHandler(c *gin.Context) {
 		// Aggregate intersection of results from both dbs
 		var intersection_records []map[string]any
 		for _, record := range records {
-			did := record["DatasetId"].(string)
+			sid := uint64(record["ScanId"].(int64))
 			for _, motor_record := range motor_records {
-				if motor_record.DatasetId == did {
+				if motor_record.ScanId == sid {
 					record["MotorMnes"] = motor_record.MotorMnes
 					record["MotorPositions"] = motor_record.MotorPositions
 					intersection_records = append(intersection_records, record)
@@ -155,12 +152,11 @@ func SearchHandler(c *gin.Context) {
 		records = intersection_records
 	} else {
 		// Complete the matching records with motor positions
-		var did string
 		for _, record := range records {
-			did = record["DatasetId"].(string)
-			motor_record, err := GetMotorRecord(did)
+			sid := uint64(record["ScanId"].(int64))
+			motor_record, err := GetMotorRecord(sid)
 			if err != nil {
-				log.Printf("Motor positions not found for DID %v; error: %v", did, err)
+				log.Printf("Motor positions not found for ScanId %v; error: %v", sid, err)
 				continue
 			}
 			record["MotorMnes"] = motor_record.MotorMnes

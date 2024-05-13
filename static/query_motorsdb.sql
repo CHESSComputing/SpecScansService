@@ -1,15 +1,15 @@
-SELECT D.did, group_concat(M.motor_mne), group_concat(P.motor_position)
+SELECT S.sid, group_concat(M.motor_mne), group_concat(P.motor_position)
 FROM MotorPositions as P
 JOIN MotorMnes AS M ON M.motor_id=P.motor_id
-JOIN DID AS D ON D.dataset_id=M.dataset_id
+JOIN ScanIds AS S ON S.scan_id=M.scan_id
 WHERE
 {{ if gt (len .MotorPositionQueries) 0 }}
 
-  D.dataset_id IN (
-    SELECT D.dataset_id
+  S.scan_id IN (
+    SELECT S.scan_id
     FROM MotorPositions as P
     JOIN MotorMnes AS M ON M.motor_id=P.motor_id
-    JOIN DID AS D ON D.dataset_id=M.dataset_id
+    JOIN ScanIds AS S ON S.scan_id=M.scan_id
     WHERE
 
     {{ range .MotorPositionQueries }}
@@ -47,19 +47,19 @@ WHERE
 
     {{ end }}
   )
-  {{ if gt (len .Dids) 0 }}
+  {{ if gt (len .Sids) 0 }}
     OR
   {{ end }}
 
 {{ end }}
 
-{{ if gt (len .Dids) 0 }}
+{{ if gt (len .Sids) 0 }}
 
-  {{ if eq 1 (len .Dids) }}
-    D.did='{{ index .Dids 0 }}'
+  {{ if eq 1 (len .Sids) }}
+    S.sid='{{ index .Sids 0 }}'
   {{ else }}
-    D.did IN (
-      {{ range .Dids }}
+    S.sid IN (
+      {{ range .Sids }}
         '{{ . }}',
       {{ end }}
     )
@@ -67,4 +67,4 @@ WHERE
 
 {{ end }}
 
-GROUP BY D.did;
+GROUP BY S.sid;

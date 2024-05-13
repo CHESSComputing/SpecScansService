@@ -1,10 +1,18 @@
 package main
 
 type Record struct {
-	DatasetId      string
-	SpecFile       string    `json:"specfile"`
-	ScanNumber     int       `json:"scannumber"`
+	ScanId         uint64
+	DatasetId      string    `json:"did"`
+	Cycle          string    `json:"cycle"`
+	Station        string    `json:"station"`
+	Btr            string    `json:"btr"`
+	SpecFile       string    `json:"spec_file"`
+	ScanNumber     int       `json:"scan_number"`
+	StartTime      float64   `json:"start_time"`
 	Command        string    `json:"command"`
+	Status         string    `json:"status"`
+	Comments       []string  `json:"comments"`
+	SpecVersion    string    `json:"spec_version"`
 	MotorMnes      []string  `json:"motor_mnes"`
 	MotorPositions []float64 `json:"motor_positions"`
 }
