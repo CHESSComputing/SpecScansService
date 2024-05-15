@@ -133,9 +133,8 @@ func SearchHandler(c *gin.Context) {
 
 	// Query the SQL db of motor positions
 	if queries["SQL"] != nil {
-		mne := queries["SQL"]["motor"].(string)
-		pos := queries["SQL"]["position"].(float64)
-		motor_records := QueryMotorPosition(mne, pos)
+
+		motor_records := QueryMotorsDb(queries["SQL"]["motors"])
 		// Aggregate intersection of results from both dbs
 		var intersection_records []map[string]any
 		for _, record := range records {
