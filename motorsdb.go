@@ -103,9 +103,9 @@ func QueryMotorPosition(mne string, pos float64) []MotorRecord {
 	return queryMotorsDb(query)
 }
 
-func GetMotorRecord(sid uint64) (MotorRecord, error) {
-	query := MotorsDbQuery{Sids: []uint64{sid}}
-	return queryMotorsDb(query)[0], nil
+func GetMotorRecords(sids ...uint64) ([]MotorRecord, error) {
+	query := MotorsDbQuery{Sids: sids}
+	return queryMotorsDb(query), nil
 }
 
 func QueryMotorsDb(query any) []MotorRecord {

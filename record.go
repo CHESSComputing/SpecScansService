@@ -26,3 +26,9 @@ func GetRecords(record map[string]any) (Record, MotorRecord, error) {
 	var motor_record MotorRecord
 	return mongo_record, motor_record, nil
 }
+
+func CompleteRecord(record map[string]any, motor_record MotorRecord) map[string]any {
+	record["MotorMnes"] = motor_record.MotorMnes
+	record["MotorPositions"] = motor_record.MotorPositions
+	return record
+}

@@ -6,9 +6,9 @@ import (
 	"log"
 	"net/http"
 
-	"github.com/gin-gonic/gin"
-
 	structtomap "github.com/Klathmon/StructToMap"
+	"github.com/gin-gonic/gin"
+	bson "go.mongodb.org/mongo-driver/bson"
 
 	auth "github.com/CHESSComputing/golib/authz"
 	srvConfig "github.com/CHESSComputing/golib/config"
@@ -32,7 +32,6 @@ func AddHandler(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, resp)
 		return
 	}
-	log.Printf("New record: %v", record)
 	record_map, err := structtomap.Convert(record)
 	if err != nil {
 		resp := services.Response("SpecScans", http.StatusInternalServerError, services.ParseError, err)
@@ -49,6 +48,7 @@ func AddHandler(c *gin.Context) {
 		MotorMnes:      record.MotorMnes,
 		MotorPositions: record.MotorPositions}
 
+	log.Printf("New record: %v", record)
 	// Peel off motor mnemonics & positions -- these are submitted to an rdb, not
 	// the mongodb.
 	record_map["MotorMnes"] = nil
@@ -126,41 +126,66 @@ func SearchHandler(c *gin.Context) {
 	if queries["Mongo"] != nil {
 		nrecords = mongo.Count(srvConfig.Config.SpecScans.MongoDB.DBName, srvConfig.Config.SpecScans.MongoDB.DBColl, queries["Mongo"])
 		records = mongo.Get(srvConfig.Config.SpecScans.MongoDB.DBName, srvConfig.Config.SpecScans.MongoDB.DBColl, queries["Mongo"], idx, limit)
-	}
-	if Verbose > 0 {
-		log.Printf("spec %v nrecords %d return idx=%d limit=%d", queries["Mongo"], nrecords, idx, limit)
+		if Verbose > 0 {
+			log.Printf("spec %v nrecords %d return idx=%d limit=%d", queries["Mongo"], nrecords, idx, limit)
+		}
 	}
 
 	// Query the SQL db of motor positions
 	if queries["SQL"] != nil {
-
 		motor_records := QueryMotorsDb(queries["SQL"]["motors"])
-		// Aggregate intersection of results from both dbs
-		var intersection_records []map[string]any
-		for _, record := range records {
-			sid := uint64(record["ScanId"].(int64))
+
+		if queries["Mongo"] != nil {
+			// Aggregate intersection of results from both dbs
+			var intersection_records []map[string]any
+			for _, record := range records {
+				sid := uint64(record["ScanId"].(int64))
+				for _, motor_record := range motor_records {
+					if motor_record.ScanId == sid {
+						intersection_records = append(intersection_records, CompleteRecord(record, motor_record))
+						break
+					}
+				}
+			}
+			records = intersection_records
+		} else {
+			// Complete the matching records with mongodb documents
+			var sids []uint64
 			for _, motor_record := range motor_records {
-				if motor_record.ScanId == sid {
-					record["MotorMnes"] = motor_record.MotorMnes
-					record["MotorPositions"] = motor_record.MotorPositions
-					intersection_records = append(intersection_records, record)
-					break
+				sids = append(sids, motor_record.ScanId)
+			}
+			mongo_query := bson.M{"ScanId": bson.M{"$in": sids}}
+			mongo_records := mongo.Get(srvConfig.Config.SpecScans.MongoDB.DBName, srvConfig.Config.SpecScans.MongoDB.DBColl, mongo_query, idx, limit)
+			for _, mongo_record := range mongo_records {
+				for _, motor_record := range motor_records {
+					if motor_record.ScanId == uint64(mongo_record["ScanId"].(int64)) {
+						records = append(records, CompleteRecord(mongo_record, motor_record))
+						break
+					}
 				}
 			}
 		}
-		records = intersection_records
 	} else {
 		// Complete the matching records with motor positions
+		log.Println("Completing mongo records with motor records")
+		var sids []uint64
 		for _, record := range records {
-			sid := uint64(record["ScanId"].(int64))
-			motor_record, err := GetMotorRecord(sid)
-			if err != nil {
-				log.Printf("Motor positions not found for ScanId %v; error: %v", sid, err)
-				continue
-			}
-			record["MotorMnes"] = motor_record.MotorMnes
-			record["MotorPositions"] = motor_record.MotorPositions
+			sids = append(sids, record["ScanId"].(uint64))
 		}
+		motor_records, err := GetMotorRecords(sids...)
+		if err != nil {
+			resp := services.Response("SpecScans", http.StatusInternalServerError, services.DatabaseError, err)
+			c.JSON(http.StatusInternalServerError, resp)
+			return
+		}
+		for i, record := range records {
+			for _, motor_record := range motor_records {
+				if motor_record.ScanId == record["ScanId"] {
+					records[i] = CompleteRecord(record, motor_record)
+				}
+			}
+		}
+
 	}
 
 	c.JSON(http.StatusOK, records)
