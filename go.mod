@@ -3,7 +3,7 @@ module github.com/CHESSComputing/SpecScansService
 go 1.22.3
 
 require (
-	github.com/CHESSComputing/golib v0.2.7
+	github.com/CHESSComputing/golib v0.2.8
 	github.com/Klathmon/StructToMap v0.0.0-20140724123129-3d0229e2dce7
 	github.com/gin-gonic/gin v1.10.0
 	github.com/mattn/go-sqlite3 v2.0.3+incompatible
@@ -95,3 +95,5 @@ require (
 	gopkg.in/jcmturner/rpc.v1 v1.1.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
+
+replace github.com/CHESSComputing/golib => ../golib
