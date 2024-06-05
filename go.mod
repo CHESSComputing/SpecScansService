@@ -1,9 +1,9 @@
 module github.com/CHESSComputing/SpecScansService
 
-go 1.22.3
+go 1.22.4
 
 require (
-	github.com/CHESSComputing/golib v0.2.9
+	github.com/CHESSComputing/golib v0.3.0
 	github.com/Klathmon/StructToMap v0.0.0-20140724123129-3d0229e2dce7
 	github.com/gin-gonic/gin v1.10.0
 	github.com/mattn/go-sqlite3 v2.0.3+incompatible
