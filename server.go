@@ -39,8 +39,8 @@ func Server() {
 
 	// Initialize map of component databased & query keys belonging to each one
 	// TODO: add field for QLMFile in golib/config.SpecScans, then use srvConfig.Config.SpecScans.QLMFile as the arg to QLM.Init
-	// (use of srvConfig.Config.SpecScans.WebServer.LimiterHeader is just temporary)
-	QLM.Init(srvConfig.Config.SpecScans.WebServer.LimiterHeader)
+	// initialize QL map
+	QLM.Init(srvConfig.Config.QL.ServiceMapFile)
 
 	// setup web router and start the service
 	r := setupRouter()
