@@ -61,8 +61,9 @@ WHERE
     S.sid='{{ index .Sids 0 }}'
   {{ else }}
     S.sid IN (
-      {{ range .Sids }}
-        '{{ . }}',
+      {{ range $i, $sid := .Sids }}
+        {{ if $i }} , {{ end }}
+        '{{ . }}'
       {{ end }}
     )
   {{ end }}
