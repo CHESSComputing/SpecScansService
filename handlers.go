@@ -44,15 +44,13 @@ func AddHandler(c *gin.Context) {
 	record_map["ScanId"] = sid
 	log.Printf("New record ScanId: %d", sid)
 	motor_record := MotorRecord{
-		ScanId:         sid,
-		MotorMnes:      record.MotorMnes,
-		MotorPositions: record.MotorPositions}
+		ScanId: sid,
+		Motors: record.Motors}
 
 	log.Printf("New record: %v", record)
 	// Peel off motor mnemonics & positions -- these are submitted to an rdb, not
 	// the mongodb.
-	record_map["MotorMnes"] = nil
-	record_map["MotorPositions"] = nil
+	record_map["Motors"] = nil
 
 	// Submit one portion of the record to mongodb...
 	mongo_records := []map[string]any{record_map} // FIXME record is not a map[string]any...

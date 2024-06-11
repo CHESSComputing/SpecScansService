@@ -26,9 +26,8 @@ type SafeDb struct {
 var MotorsDb SafeDb
 
 type MotorRecord struct {
-	ScanId         uint64
-	MotorMnes      []string
-	MotorPositions []float64
+	ScanId uint64
+	Motors map[string]float64
 }
 
 type MotorPositionQuery struct {
@@ -72,8 +71,8 @@ func InsertMotors(r MotorRecord) (int64, error) {
 		return scan_id, err
 	}
 	var motor_id int64
-	for i := 0; i < len(r.MotorMnes); i++ {
-		result, err = MotorsDb.db.Exec("INSERT INTO MotorMnes (scan_id, motor_mne) VALUES (?, ?)", scan_id, r.MotorMnes[i])
+	for mne, pos := range r.Motors {
+		result, err = MotorsDb.db.Exec("INSERT INTO MotorMnes (scan_id, motor_mne) VALUES (?, ?)", scan_id, mne)
 		if err != nil {
 			log.Printf("Could not insert record to MotorMnes table; error: %v", err)
 			continue
@@ -83,7 +82,7 @@ func InsertMotors(r MotorRecord) (int64, error) {
 			log.Printf("Could not get ID of new record in MotorMnes; error: %v", err)
 			continue
 		}
-		result, err = MotorsDb.db.Exec("INSERT INTO MotorPositions (motor_id, motor_position) VALUES (?, ?)", motor_id, r.MotorPositions[i])
+		result, err = MotorsDb.db.Exec("INSERT INTO MotorPositions (motor_id, motor_position) VALUES (?, ?)", motor_id, pos)
 		if err != nil {
 			log.Printf("Could not insert record to MotorPositions table; error: %v", err)
 		}
@@ -209,13 +208,13 @@ func getMotorRecord(rows *sql.Rows) MotorRecord {
 		log.Printf("Could not get a MotorRecord from a row of SQL results. error: %v", err)
 		return motor_record
 	}
-	motor_record.MotorMnes = strings.Split(_motor_mnes, ",")
-	motor_positions := make([]float64, 0, len(motor_record.MotorMnes))
-	for _, position := range strings.Split(_motor_positions, ",") {
-		position, _ := strconv.ParseFloat(position, 64)
-		motor_positions = append(motor_positions, position)
+	motor_mnes := strings.Split(_motor_mnes, ",")
+	motor_positions := strings.Split(_motor_positions, ",")
+	motors := make(map[string]float64)
+	for i := 0; i < len(motor_mnes); i++ {
+		motors[motor_mnes[i]], _ = strconv.ParseFloat(motor_positions[i], 64)
 	}
-	motor_record.MotorPositions = motor_positions
+	motor_record.Motors = motors
 	return motor_record
 }
 
