@@ -12,8 +12,5 @@ func main() {
 		log.SetFlags(log.LstdFlags | log.Lshortfile)
 	}
 
-	InitMotorsDb()
-	defer MotorsDb.db.Close()
-
 	Server()
 }
