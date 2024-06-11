@@ -170,7 +170,7 @@ func SearchHandler(c *gin.Context) {
 		log.Println("Completing mongo records with motor records")
 		var sids []uint64
 		for _, record := range records {
-			sids = append(sids, record["ScanId"].(uint64))
+			sids = append(sids, uint64(record["ScanId"].(int64)))
 		}
 		motor_records, err := GetMotorRecords(sids...)
 		if err != nil {
@@ -180,7 +180,7 @@ func SearchHandler(c *gin.Context) {
 		}
 		for i, record := range records {
 			for _, motor_record := range motor_records {
-				if motor_record.ScanId == record["ScanId"] {
+				if motor_record.ScanId == uint64(record["ScanId"].(int64)) {
 					records[i] = CompleteRecord(record, motor_record)
 				}
 			}
