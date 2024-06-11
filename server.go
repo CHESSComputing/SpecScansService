@@ -36,6 +36,9 @@ func Server() {
 
 	// Setup mongodb connection
 	mongo.InitMongoDB(srvConfig.Config.SpecScans.MongoDB.DBUri)
+	// Setup sqlite3 db connection
+	InitMotorsDb()
+	defer MotorsDb.db.Close()
 
 	// Initialize map of component databased & query keys belonging to each one
 	// TODO: add field for QLMFile in golib/config.SpecScans, then use srvConfig.Config.SpecScans.QLMFile as the arg to QLM.Init

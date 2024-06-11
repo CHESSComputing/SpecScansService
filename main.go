@@ -7,8 +7,5 @@ import (
 func main() {
 	srvConfig.Init()
 
-	InitMotorsDb()
-	defer MotorsDb.db.Close()
-
 	Server()
 }
