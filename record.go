@@ -1,32 +1,28 @@
 package main
 
-type Record struct {
-	ScanId      uint64
-	DatasetId   string             `json:"did"`
-	Cycle       string             `json:"cycle"`
-	Station     string             `json:"station"`
-	Btr         string             `json:"btr"`
-	SpecFile    string             `json:"spec_file"`
-	ScanNumber  int                `json:"scan_number"`
-	StartTime   float64            `json:"start_time"`
-	Command     string             `json:"command"`
-	Status      string             `json:"status"`
-	Comments    []string           `json:"comments"`
-	SpecVersion string             `json:"spec_version"`
-	Motors      map[string]float64 `json:"motors"`
+// Decompose a user-submitted scan record into two portions: the portion to
+// reside in the MongoDB, and the motor positions (which will reside in the SQL
+// db).
+func DecomposeRecord(record map[string]any) (map[string]any, MotorRecord) {
+	// Complete the Mongodb portion with ScanId (derived from the scan's start time).
+	sid := uint64(record["start_time"].(float64))
+	record["sid"] = sid
+
+	// Separate motor positions from teh user-submitted record.
+	motors := make(map[string]float64)
+	for k, v := range record["motors"].(map[string]interface{}) {
+		motors[k] = v.(float64)
+	}
+	motor_record := MotorRecord{
+		ScanId: sid,
+		Motors: motors}
+	delete(record, "motors")
+
+	return record, motor_record
 }
 
-func GetRecords(record map[string]any) (Record, MotorRecord, error) {
-	// Decompose a user-submitted record into two pieces:
-	// the mongodb portion (no motor positions), and
-	// the sql portion (only motor positions).
-	// Get the record's dataset ID and include it in both records.
-	var mongo_record Record
-	var motor_record MotorRecord
-	return mongo_record, motor_record, nil
-}
-
+// Combine a partial scan record with its motor positions, return the completed record
 func CompleteRecord(record map[string]any, motor_record MotorRecord) map[string]any {
-	record["Motors"] = motor_record.Motors
+	record["motors"] = motor_record.Motors
 	return record
 }

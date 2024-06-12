@@ -1,17 +1,17 @@
 {
   "Mongo": [
-    "ScanId",
-    "DatasetId",
-    "Cycle",
-    "Station",
-    "Btr",
-    "SpecFile",
-    "ScanNumber",
-    "StartTime",
-    "Command",
-    "Status",
-    "Comments",
-    "SpecVersion"
+    "sid",
+    "did",
+    "cycle",
+    "station",
+    "btr",
+    "spec_file",
+    "scan_number",
+    "start_time",
+    "command",
+    "status",
+    "comments",
+    "spec_version"
   ],
   "SQL": [
     "motors"

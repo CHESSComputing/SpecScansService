@@ -1,17 +1,19 @@
 package main
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
+	"io/ioutil"
 	"log"
 	"net/http"
 
-	structtomap "github.com/Klathmon/StructToMap"
 	"github.com/gin-gonic/gin"
 	bson "go.mongodb.org/mongo-driver/bson"
 
 	auth "github.com/CHESSComputing/golib/authz"
 	srvConfig "github.com/CHESSComputing/golib/config"
+	lexicon "github.com/CHESSComputing/golib/lexicon"
 	mongo "github.com/CHESSComputing/golib/mongo"
 	services "github.com/CHESSComputing/golib/services"
 )
@@ -26,35 +28,34 @@ func HTTPError(label, msg string, w http.ResponseWriter) {
 
 // Handler for adding a new record to the database
 func AddHandler(c *gin.Context) {
-	var record Record
-	if err := c.Bind(&record); err != nil {
-		resp := services.Response("SpecScans", http.StatusInternalServerError, services.BindError, err)
-		c.JSON(http.StatusInternalServerError, resp)
-		return
-	}
-	record_map, err := structtomap.Convert(record)
+	var record_map map[string]any
+	defer c.Request.Body.Close()
+	body, err := ioutil.ReadAll(c.Request.Body)
 	if err != nil {
-		resp := services.Response("SpecScans", http.StatusInternalServerError, services.ParseError, err)
+		log.Printf("ReadAll error: %v", err)
+		return
+	}
+	err = json.Unmarshal(body, &record_map)
+	if err != nil {
+		log.Printf("Unmarshal error: %v", err)
+		return
+	}
+	if Verbose > 0 {
+		log.Printf("AddHandler received request %+v", record_map)
+	}
+	err = lexicon.ValidateRecord(record_map)
+	if err != nil {
+		resp := services.Response("SpecScans", http.StatusInternalServerError, services.ValidateError, err)
 		c.JSON(http.StatusInternalServerError, resp)
 		return
 	}
 
-	// Get the ScanId and add it to the records to be submitted
-	sid := uint64(record_map["StartTime"].(float64))
-	record_map["ScanId"] = sid
-	log.Printf("New record ScanId: %d", sid)
-	motor_record := MotorRecord{
-		ScanId: sid,
-		Motors: record.Motors}
-
-	log.Printf("New record: %v", record)
-	// Peel off motor mnemonics & positions -- these are submitted to an rdb, not
-	// the mongodb.
-	record_map["Motors"] = nil
+	// Decompose the user-submitted record into the portions will be submitted to
+	// the two separate dbs.
+	mongo_record, motor_record := DecomposeRecord(record_map)
 
 	// Submit one portion of the record to mongodb...
-	mongo_records := []map[string]any{record_map} // FIXME record is not a map[string]any...
-	mongo.Insert(srvConfig.Config.SpecScans.MongoDB.DBName, srvConfig.Config.SpecScans.MongoDB.DBColl, mongo_records)
+	mongo.Insert(srvConfig.Config.SpecScans.MongoDB.DBName, srvConfig.Config.SpecScans.MongoDB.DBColl, []map[string]any{mongo_record})
 
 	// Now insert the motor mnes & positions record
 	sql_id, err := InsertMotors(motor_record)
@@ -65,7 +66,7 @@ func AddHandler(c *gin.Context) {
 	}
 	log.Printf("Added record to SQL db: %v (ID: %v)\n", motor_record, sql_id)
 
-	c.String(http.StatusOK, fmt.Sprintf("New record ScanId: %d\n", sid))
+	c.String(http.StatusOK, fmt.Sprintf("New record sid: %d\n", mongo_record["sid"]))
 	return
 }
 
@@ -137,7 +138,7 @@ func SearchHandler(c *gin.Context) {
 			// Aggregate intersection of results from both dbs
 			var intersection_records []map[string]any
 			for _, record := range records {
-				sid := uint64(record["ScanId"].(int64))
+				sid := uint64(record["sid"].(int64))
 				for _, motor_record := range motor_records {
 					if motor_record.ScanId == sid {
 						intersection_records = append(intersection_records, CompleteRecord(record, motor_record))
@@ -152,11 +153,11 @@ func SearchHandler(c *gin.Context) {
 			for _, motor_record := range motor_records {
 				sids = append(sids, motor_record.ScanId)
 			}
-			mongo_query := bson.M{"ScanId": bson.M{"$in": sids}}
+			mongo_query := bson.M{"sid": bson.M{"$in": sids}}
 			mongo_records := mongo.Get(srvConfig.Config.SpecScans.MongoDB.DBName, srvConfig.Config.SpecScans.MongoDB.DBColl, mongo_query, idx, limit)
 			for _, mongo_record := range mongo_records {
 				for _, motor_record := range motor_records {
-					if motor_record.ScanId == uint64(mongo_record["ScanId"].(int64)) {
+					if motor_record.ScanId == uint64(mongo_record["sid"].(int64)) {
 						records = append(records, CompleteRecord(mongo_record, motor_record))
 						break
 					}
@@ -168,7 +169,7 @@ func SearchHandler(c *gin.Context) {
 		log.Println("Completing mongo records with motor records")
 		var sids []uint64
 		for _, record := range records {
-			sids = append(sids, uint64(record["ScanId"].(int64)))
+			sids = append(sids, uint64(record["sid"].(int64)))
 		}
 		motor_records, err := GetMotorRecords(sids...)
 		if err != nil {
@@ -178,7 +179,7 @@ func SearchHandler(c *gin.Context) {
 		}
 		for i, record := range records {
 			for _, motor_record := range motor_records {
-				if motor_record.ScanId == uint64(record["ScanId"].(int64)) {
+				if motor_record.ScanId == uint64(record["sid"].(int64)) {
 					records[i] = CompleteRecord(record, motor_record)
 				}
 			}
