@@ -53,12 +53,12 @@ func AddHandler(c *gin.Context) {
 	err_ch := make(chan error)
 	defer close(rec_ch)
 	defer close(err_ch)
-	for _, record_map := range(record_maps) {
+	for _, record_map := range record_maps {
 		go addRecord(record_map, rec_ch, err_ch)
 	}
 	var result_records []map[string]any
 	var result_err string
-	for i := 0; i < len(record_maps); i++{
+	for i := 0; i < len(record_maps); i++ {
 		select {
 		case new_record := <-rec_ch:
 			result_records = append(result_records, new_record)
@@ -70,12 +70,12 @@ func AddHandler(c *gin.Context) {
 	}
 	response := services.ServiceResponse{
 		HttpCode: http.StatusOK,
-		SrvCode: services.OK,
-		Service: "SpecScans",
-		Error: result_err,
+		SrvCode:  services.OK,
+		Service:  "SpecScans",
+		Error:    result_err,
 		Results: services.ServiceResults{
 			NRecords: len(result_records),
-			Records: result_records,
+			Records:  result_records,
 		},
 	}
 	c.JSON(http.StatusOK, response)
@@ -198,7 +198,6 @@ func SearchHandler(c *gin.Context) {
 	c.JSON(http.StatusOK, records)
 	return
 }
-
 
 // Helper function to add a single record to the database(s)
 // (to be called as a goroutine)
