@@ -132,14 +132,10 @@ func SearchHandler(c *gin.Context) {
 	log.Printf("SQL query: %v", queries["SQL"])
 
 	// Query the mongodb
-	var records []map[string]any
-	nrecords := 0
-	if queries["Mongo"] != nil {
-		nrecords = mongo.Count(srvConfig.Config.SpecScans.MongoDB.DBName, srvConfig.Config.SpecScans.MongoDB.DBColl, queries["Mongo"])
-		records = mongo.Get(srvConfig.Config.SpecScans.MongoDB.DBName, srvConfig.Config.SpecScans.MongoDB.DBColl, queries["Mongo"], idx, limit)
-		if Verbose > 0 {
-			log.Printf("spec %v nrecords %d return idx=%d limit=%d", queries["Mongo"], nrecords, idx, limit)
-		}
+	nrecords := mongo.Count(srvConfig.Config.SpecScans.MongoDB.DBName, srvConfig.Config.SpecScans.MongoDB.DBColl, queries["Mongo"])
+	records := mongo.Get(srvConfig.Config.SpecScans.MongoDB.DBName, srvConfig.Config.SpecScans.MongoDB.DBColl, queries["Mongo"], idx, limit)
+	if Verbose > 0 {
+		log.Printf("spec %v nrecords %d return idx=%d limit=%d", queries["Mongo"], nrecords, idx, limit)
 	}
 
 	// Query the SQL db of motor positions
