@@ -18,14 +18,6 @@ import (
 	services "github.com/CHESSComputing/golib/services"
 )
 
-// Helper for handling errors
-func HTTPError(label, msg string, w http.ResponseWriter) {
-	log.Println(label, msg)
-	w.WriteHeader(http.StatusInternalServerError)
-	w.Write([]byte(msg))
-	return
-}
-
 // Handler for adding a new record to the database
 func AddHandler(c *gin.Context) {
 	var record_map map[string]any
@@ -44,6 +36,13 @@ func AddHandler(c *gin.Context) {
 		log.Printf("AddHandler received request %+v", record_map)
 	}
 	err = lexicon.ValidateRecord(record_map)
+	if err != nil {
+		resp := services.Response("SpecScans", http.StatusInternalServerError, services.ValidateError, err)
+		c.JSON(http.StatusInternalServerError, resp)
+		return
+	}
+
+	err = Schema.Validate(record_map)
 	if err != nil {
 		resp := services.Response("SpecScans", http.StatusInternalServerError, services.ValidateError, err)
 		c.JSON(http.StatusInternalServerError, resp)

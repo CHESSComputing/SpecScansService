@@ -1,5 +1,28 @@
 package main
 
+import (
+	"log"
+
+	schema "github.com/CHESSComputing/golib/beamlines"
+	srvConfig "github.com/CHESSComputing/golib/config"
+)
+
+var Schema *schema.Schema
+
+func InitSchemaManager() {
+	var smgr schema.SchemaManager
+	// TODO: add field for schema file in golib/config.SpecScans, then use
+	// srvConfig.Config.SpecScans.Schema as the arg to smgr.Load
+	// (use of srvConfig.Config.SpecScans.WebServer.MetricsPrefix) is just temporary)
+	_schema, err := smgr.Load(srvConfig.Config.SpecScans.WebServer.MetricsPrefix)
+	if err != nil {
+		log.Println("Problem loading schema")
+	} else {
+		Schema = _schema
+	}
+	log.Printf("schema: %v", Schema)
+}
+
 // Decompose a user-submitted scan record into two portions: the portion to
 // reside in the MongoDB, and the motor positions (which will reside in the SQL
 // db).
