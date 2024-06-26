@@ -42,9 +42,7 @@ func Server() {
 	defer MotorsDb.db.Close()
 
 	// Initialize map of component databased & query keys belonging to each one
-	// TODO: add field for QLMFile in golib/config.SpecScans, then use srvConfig.Config.SpecScans.QLMFile as the arg to QLM.Init
-	// (use of srvConfig.Config.SpecScans.WebServer.LimiterHeader is just temporary)
-	QLM.Init(srvConfig.Config.SpecScans.WebServer.LimiterHeader)
+	QLM.Init(srvConfig.Config.SpecScans.QLMFile)
 
 	// Initialize schema for validating new records
 	InitSchemaManager()

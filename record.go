@@ -11,10 +11,7 @@ var Schema *schema.Schema
 
 func InitSchemaManager() {
 	var smgr schema.SchemaManager
-	// TODO: add field for schema file in golib/config.SpecScans, then use
-	// srvConfig.Config.SpecScans.Schema as the arg to smgr.Load
-	// (use of srvConfig.Config.SpecScans.WebServer.MetricsPrefix) is just temporary)
-	_schema, err := smgr.Load(srvConfig.Config.SpecScans.WebServer.MetricsPrefix)
+	_schema, err := smgr.Load(srvConfig.Config.SpecScans.SchemaFile)
 	if err != nil {
 		log.Println("Problem loading schema")
 	} else {
