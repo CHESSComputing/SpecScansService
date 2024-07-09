@@ -67,7 +67,10 @@ func AddHandler(c *gin.Context) {
 	}
 	log.Printf("Added record to SQL db: %v (ID: %v)\n", motor_record, sql_id)
 
-	c.String(http.StatusOK, fmt.Sprintf("New record ScanId: %d\n", sid))
+	//     c.String(http.StatusOK, fmt.Sprintf("New record ScanId: %d\n", sid))
+	resp := services.Response("SpecScans", http.StatusOK, services.OK, nil)
+	resp.Results = services.ServiceResults{NRecords: len(mongo_records), Records: mongo_records}
+	c.JSON(http.StatusOK, resp)
 	return
 }
 
