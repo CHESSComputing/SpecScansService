@@ -57,6 +57,12 @@ func InitMotorsDb() {
 }
 
 func InsertMotors(r MotorRecord) (int64, error) {
+	// Check if given ScanId already exist in DB, if so return it without errors
+	_, err := MotorsDb.db.Exec("SELECT sid FROM ScanIds WHERE sid = ?", r.ScanId)
+	if err == nil {
+		return int64(r.ScanId), nil
+	}
+
 	// Insert the given motor record to the three tables that compose the static
 	// motor positions database.
 	log.Printf("Inserting motor record: %v", r)
