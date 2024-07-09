@@ -12,7 +12,8 @@ WHERE
     JOIN ScanIds AS S ON S.scan_id=M.scan_id
     WHERE
 
-    {{ range .MotorPositionQueries }}
+    {{ range $i, $MotorPositionQuery := .MotorPositionQueries }}
+      {{ if $i }} OR {{ end }}
       M.motor_mne='{{ .Mne }}'
 
       {{ if or .Exact (or .Min .Max) }}
@@ -35,8 +36,9 @@ WHERE
             P.motor_position={{ index .Exact 0 }}
           {{ else }}
             P.motor_position IN (
-              {{ range .Exact }}
-                {{ . }},
+              {{ range $ii, $position := .Exact }}
+                {{ if $ii }}, {{ end }}
+                {{ $position }}
               {{ end }}
             )
           {{ end }}
@@ -59,8 +61,9 @@ WHERE
     S.sid='{{ index .Sids 0 }}'
   {{ else }}
     S.sid IN (
-      {{ range .Sids }}
-        '{{ . }}',
+      {{ range $i, $sid := .Sids }}
+        {{ if $i }} , {{ end }}
+        '{{ . }}'
       {{ end }}
     )
   {{ end }}
