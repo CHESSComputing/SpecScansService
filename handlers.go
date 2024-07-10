@@ -106,6 +106,9 @@ func SearchHandler(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, resp)
 		return
 	}
+	log.Printf("QLM: %+v", QLM)
+	log.Printf("service request: %+v", query_request)
+
 	// Get all attributes we need for querying the mongodb
 	query := query_request.ServiceQuery.Query
 	idx := query_request.ServiceQuery.Idx
@@ -118,6 +121,7 @@ func SearchHandler(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, resp)
 		return
 	}
+	log.Printf("queries %+v", queries)
 	log.Printf("Mongo query: %v", queries["Mongo"])
 	log.Printf("SQL query: %v", queries["SQL"])
 
