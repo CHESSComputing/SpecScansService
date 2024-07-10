@@ -5,6 +5,8 @@ package main
 // Copyright (c) 2023 - Valentin Kuznetsov <vkuznet@gmail.com>
 //
 import (
+	"log"
+
 	server "github.com/CHESSComputing/golib/server"
 	services "github.com/CHESSComputing/golib/services"
 	"github.com/gin-gonic/gin"
@@ -41,9 +43,11 @@ func Server() {
 	defer MotorsDb.db.Close()
 
 	// Initialize map of component databased & query keys belonging to each one
-	// TODO: add field for QLMFile in golib/config.SpecScans, then use srvConfig.Config.SpecScans.QLMFile as the arg to QLM.Init
-	// initialize QL map
-	QLM.Init(srvConfig.Config.QL.ServiceMapFile)
+	// initialize QLM
+	err := QLM.Init(srvConfig.Config.QL.ServiceMapFile)
+	if err != nil {
+		log.Fatal(err)
+	}
 
 	// setup web router and start the service
 	r := setupRouter()
