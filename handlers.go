@@ -13,6 +13,7 @@ import (
 	auth "github.com/CHESSComputing/golib/authz"
 	srvConfig "github.com/CHESSComputing/golib/config"
 	mongo "github.com/CHESSComputing/golib/mongo"
+	ql "github.com/CHESSComputing/golib/ql"
 	services "github.com/CHESSComputing/golib/services"
 )
 
@@ -106,7 +107,6 @@ func SearchHandler(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, resp)
 		return
 	}
-	log.Printf("QLM: %+v", QLM)
 	log.Printf("service request: %+v", query_request)
 
 	// Get all attributes we need for querying the mongodb
@@ -121,23 +121,28 @@ func SearchHandler(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, resp)
 		return
 	}
-	log.Printf("queries %+v", queries)
-	log.Printf("Mongo query: %v", queries["Mongo"])
-	log.Printf("SQL query: %v", queries["SQL"])
+	log.Printf("input service queries %+v", queries)
 
 	// Query the mongodb
 	var records []map[string]any
 	nrecords := 0
-	if queries["Mongo"] != nil {
-		nrecords = mongo.Count(srvConfig.Config.SpecScans.MongoDB.DBName, srvConfig.Config.SpecScans.MongoDB.DBColl, queries["Mongo"])
-		records = mongo.Get(srvConfig.Config.SpecScans.MongoDB.DBName, srvConfig.Config.SpecScans.MongoDB.DBColl, queries["Mongo"], idx, limit)
-		if Verbose > 0 {
-			log.Printf("spec %v nrecords %d return idx=%d limit=%d", queries["Mongo"], nrecords, idx, limit)
+	if val, ok := queries["SpecScans"]; ok {
+		// parse input query
+		spec, err := ql.ParseQuery(query)
+		if err != nil {
+			log.Printf("ERROR: SpecScans query: %v, spec=%v, err=%v", val, spec, err)
+		} else {
+			nrecords = mongo.Count(srvConfig.Config.SpecScans.MongoDB.DBName, srvConfig.Config.SpecScans.MongoDB.DBColl, spec)
+			records = mongo.Get(srvConfig.Config.SpecScans.MongoDB.DBName, srvConfig.Config.SpecScans.MongoDB.DBColl, spec, idx, limit)
+			if Verbose > 0 {
+				log.Printf("spec %v nrecords %d return idx=%d limit=%d", spec, nrecords, idx, limit)
+			}
 		}
 	}
 
 	// Query the SQL db of motor positions
 	if queries["SQL"] != nil {
+		log.Printf("SQL query: %v", queries["SQL"])
 		motor_records := QueryMotorsDb(queries["SQL"]["motors"])
 
 		if queries["Mongo"] != nil {
