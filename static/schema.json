@@ -29,7 +29,7 @@
     },
     {
 	"key": "scan_number",
-	"type": "float64",
+	"type": "int8",
 	"optional": false,
 	"description": "Scan number",
 	"utils": ""
