@@ -38,11 +38,11 @@ func Server() {
 
 	// Setup mongodb connection
 	mongo.InitMongoDB(srvConfig.Config.SpecScans.MongoDB.DBUri)
+
 	// Setup sqlite3 db connection
 	InitMotorsDb()
 	defer MotorsDb.db.Close()
 
-	// Initialize map of component databased & query keys belonging to each one
 	// initialize QLM
 	err := QLM.Init(srvConfig.Config.QL.ServiceMapFile)
 	if err != nil {
