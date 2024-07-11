@@ -15,6 +15,7 @@ import (
 	srvConfig "github.com/CHESSComputing/golib/config"
 	lexicon "github.com/CHESSComputing/golib/lexicon"
 	mongo "github.com/CHESSComputing/golib/mongo"
+	ql "github.com/CHESSComputing/golib/ql"
 	services "github.com/CHESSComputing/golib/services"
 )
 
@@ -122,27 +123,27 @@ func SearchHandler(c *gin.Context) {
 	limit := query_request.ServiceQuery.Limit
 
 	// Get query string as map of values
-	queries, err := QLM.ServiceQueries(query)
+	queries, err := getServiceQueriesByDBType(QLM, "SpecScans", query)
 	if err != nil {
 		resp := services.Response("SpecScans", http.StatusInternalServerError, services.ParseError, err)
 		c.JSON(http.StatusInternalServerError, resp)
 		return
 	}
-	log.Printf("Mongo query: %v", queries["Mongo"])
-	log.Printf("SQL query: %v", queries["SQL"])
+	log.Printf("Mongo query: %v", queries["mongo"])
+	log.Printf("SQL query: %v", queries["sql"])
 
 	// Query the mongodb
-	nrecords := mongo.Count(srvConfig.Config.SpecScans.MongoDB.DBName, srvConfig.Config.SpecScans.MongoDB.DBColl, queries["Mongo"])
-	records := mongo.Get(srvConfig.Config.SpecScans.MongoDB.DBName, srvConfig.Config.SpecScans.MongoDB.DBColl, queries["Mongo"], idx, limit)
+	nrecords := mongo.Count(srvConfig.Config.SpecScans.MongoDB.DBName, srvConfig.Config.SpecScans.MongoDB.DBColl, queries["mongo"])
+	records := mongo.Get(srvConfig.Config.SpecScans.MongoDB.DBName, srvConfig.Config.SpecScans.MongoDB.DBColl, queries["mongo"], idx, limit)
 	if Verbose > 0 {
-		log.Printf("spec %v nrecords %d return idx=%d limit=%d", queries["Mongo"], nrecords, idx, limit)
+		log.Printf("spec %v nrecords %d return idx=%d limit=%d", queries["mongo"], nrecords, idx, limit)
 	}
 
 	// Query the SQL db of motor positions
-	if queries["SQL"] != nil {
-		motor_records := QueryMotorsDb(queries["SQL"]["motors"])
+	if queries["sql"] != nil {
+		motor_records := QueryMotorsDb(queries["sql"]["motors"])
 
-		if queries["Mongo"] != nil {
+		if queries["mongo"] != nil {
 			// Aggregate intersection of results from both dbs
 			var intersection_records []map[string]any
 			for _, record := range records {
@@ -231,4 +232,28 @@ func addRecord(record map[string]any, rec_ch chan map[string]any, err_ch chan er
 	// Send SID of new record
 	result_record := map[string]any{"sid": sql_id}
 	rec_ch <- result_record
+}
+
+// Returns map of queries for a single service sorted by the query
+// keys' DBType
+func getServiceQueriesByDBType(q ql.QLManager, servicename string, query string) (map[string]bson.M, error) {
+	dbqueries := make(map[string]bson.M)
+	queries, err := q.ServiceQueries(query)
+	if err != nil {
+		return dbqueries, err
+	}
+	specscanquery := queries[servicename]
+	for key, val := range(specscanquery) {
+		for _, rec := range(q.Records) {
+			if rec.Key == key && rec.Service == servicename {
+				if dbquery, ok := dbqueries[rec.DBType]; ok {
+					dbquery[key] = val
+					dbqueries[rec.DBType] = dbquery
+				} else {
+					dbqueries[rec.DBType] = bson.M{key: val}
+				}
+			}
+		}
+	}
+	return dbqueries, nil
 }

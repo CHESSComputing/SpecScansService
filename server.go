@@ -42,7 +42,7 @@ func Server() {
 	defer MotorsDb.db.Close()
 
 	// Initialize map of component databased & query keys belonging to each one
-	QLM.Init(srvConfig.Config.SpecScans.QL.ServiceMapFile)
+	QLM.Init(srvConfig.Config.QL.ServiceMapFile)
 
 	// Initialize schema for validating new records
 	InitSchemaManager()
