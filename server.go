@@ -5,6 +5,8 @@ package main
 // Copyright (c) 2023 - Valentin Kuznetsov <vkuznet@gmail.com>
 //
 import (
+	"log"
+
 	server "github.com/CHESSComputing/golib/server"
 	services "github.com/CHESSComputing/golib/services"
 	"github.com/gin-gonic/gin"
@@ -41,11 +43,11 @@ func Server() {
 	InitMotorsDb()
 	defer MotorsDb.db.Close()
 
-	// Initialize map of component databased & query keys belonging to each one
-	QLM.Init(srvConfig.Config.QL.ServiceMapFile)
-
-	// Initialize schema for validating new records
-	InitSchemaManager()
+	// initialize QLM
+	err := QLM.Init(srvConfig.Config.QL.ServiceMapFile)
+	if err != nil {
+		log.Fatal(err)
+	}
 
 	// setup web router and start the service
 	r := setupRouter()

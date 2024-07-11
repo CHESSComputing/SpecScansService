@@ -117,6 +117,8 @@ func SearchHandler(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, resp)
 		return
 	}
+	log.Printf("service request: %+v", query_request)
+
 	// Get all attributes we need for querying the mongodb
 	query := query_request.ServiceQuery.Query
 	idx := query_request.ServiceQuery.Idx
@@ -142,7 +144,7 @@ func SearchHandler(c *gin.Context) {
 	// Query the SQL db of motor positions
 	if queries["sql"] != nil {
 		motor_records := QueryMotorsDb(queries["sql"]["motors"])
-
+    
 		if queries["mongo"] != nil {
 			// Aggregate intersection of results from both dbs
 			var intersection_records []map[string]any
