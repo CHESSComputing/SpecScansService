@@ -43,6 +43,9 @@ func Server() {
 	InitMotorsDb()
 	defer MotorsDb.db.Close()
 
+	// local SpecScans schema
+	InitSchemaManager()
+
 	// initialize QLM
 	err := QLM.Init(srvConfig.Config.QL.ServiceMapFile)
 	if err != nil {
