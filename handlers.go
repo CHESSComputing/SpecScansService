@@ -9,6 +9,7 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
+	mapstructure "github.com/mitchellh/mapstructure"
 	bson "go.mongodb.org/mongo-driver/bson"
 
 	auth "github.com/CHESSComputing/golib/authz"
@@ -32,34 +33,34 @@ func AddHandler(c *gin.Context) {
 	}
 
 	// Try to unmarshal body as multiple records
-	var record_maps []map[string]any
-	err = json.Unmarshal(body, &record_maps)
+	var records []UserRecord
+	err = json.Unmarshal(body, &records)
 	if err != nil {
 		// Fallback: try to unmarshal body as single record
-		var record_map map[string]any
-		err = json.Unmarshal(body, &record_map)
+		var record UserRecord
+		err = json.Unmarshal(body, &record)
 		if err != nil {
 			log.Printf("Unmarshal error: %v", err)
 			resp := services.Response("SpecScans", http.StatusInternalServerError, services.UnmarshalError, err)
 			c.JSON(http.StatusInternalServerError, resp)
 			return
 		}
-		record_maps = []map[string]any{record_map}
+		records = []UserRecord{record}
 	}
 
 	if Verbose > 0 {
-		log.Printf("AddHandler received request %+v", record_maps)
+		log.Printf("AddHandler received request %+v", records)
 	}
 	rec_ch := make(chan map[string]any)
 	err_ch := make(chan error)
 	defer close(rec_ch)
 	defer close(err_ch)
-	for _, record_map := range record_maps {
-		go addRecord(record_map, rec_ch, err_ch)
+	for _, record := range records {
+		go addRecord(record, rec_ch, err_ch)
 	}
 	var result_records []map[string]any
 	var result_err string
-	for i := 0; i < len(record_maps); i++ {
+	for i := 0; i < len(records); i++ {
 		select {
 		case new_record := <-rec_ch:
 			result_records = append(result_records, new_record)
@@ -110,6 +111,8 @@ func EditHandler(c *gin.Context) {
 // Handler for querying the databases for records
 func SearchHandler(c *gin.Context) {
 
+	var matching_records []UserRecord
+
 	// Parse database query from request
 	var query_request services.ServiceRequest
 	if err := c.Bind(&query_request); err != nil {
@@ -144,32 +147,45 @@ func SearchHandler(c *gin.Context) {
 	// Query the SQL db of motor positions
 	if queries["sql"] != nil {
 		motor_records := QueryMotorsDb(queries["sql"]["motors"])
-    
+
 		if queries["mongo"] != nil {
 			// Aggregate intersection of results from both dbs
-			var intersection_records []map[string]any
+			var intersection_records []UserRecord
 			for _, record := range records {
-				sid := uint64(record["sid"].(int64))
+				var mongo_record MongoRecord
+				err = mapstructure.Decode(record, &mongo_record)
+				if err != nil {
+					resp := services.Response("SpecScans", http.StatusInternalServerError, services.ParseError, err)
+					c.JSON(http.StatusInternalServerError, resp)
+					return
+				}
 				for _, motor_record := range motor_records {
-					if motor_record.ScanId == sid {
-						intersection_records = append(intersection_records, CompleteRecord(record, motor_record))
+					if motor_record.ScanId == mongo_record.ScanId {
+						intersection_records = append(intersection_records, CompleteRecord(mongo_record, motor_record))
 						break
 					}
 				}
 			}
-			records = intersection_records
+			matching_records = intersection_records
 		} else {
 			// Complete the matching records with mongodb documents
-			var sids []uint64
+			var sids []float64
 			for _, motor_record := range motor_records {
 				sids = append(sids, motor_record.ScanId)
 			}
 			mongo_query := bson.M{"sid": bson.M{"$in": sids}}
 			mongo_records := mongo.Get(srvConfig.Config.SpecScans.MongoDB.DBName, srvConfig.Config.SpecScans.MongoDB.DBColl, mongo_query, idx, limit)
-			for _, mongo_record := range mongo_records {
+			for _, _mongo_record := range mongo_records {
+				var mongo_record MongoRecord
+				err = mapstructure.Decode(_mongo_record, &mongo_record)
+				if err != nil {
+					resp := services.Response("SpecScans", http.StatusInternalServerError, services.ParseError, err)
+					c.JSON(http.StatusInternalServerError, resp)
+					return
+				}
 				for _, motor_record := range motor_records {
-					if motor_record.ScanId == uint64(mongo_record["sid"].(int64)) {
-						records = append(records, CompleteRecord(mongo_record, motor_record))
+					if motor_record.ScanId == mongo_record.ScanId {
+						matching_records = append(matching_records, CompleteRecord(mongo_record, motor_record))
 						break
 					}
 				}
@@ -177,10 +193,18 @@ func SearchHandler(c *gin.Context) {
 		}
 	} else {
 		// Complete the matching records with motor positions
-		log.Println("Completing mongo records with motor records")
-		var sids []uint64
+		var sids []float64
+		var mongo_records []MongoRecord
 		for _, record := range records {
-			sids = append(sids, uint64(record["sid"].(int64)))
+			var mongo_record MongoRecord
+			err = mapstructure.Decode(record, &mongo_record)
+			if err != nil {
+				resp := services.Response("SpecScans", http.StatusInternalServerError, services.ParseError, err)
+				c.JSON(http.StatusInternalServerError, resp)
+				return
+			}
+			sids = append(sids, mongo_record.ScanId)
+			mongo_records = append(mongo_records, mongo_record)
 		}
 		motor_records, err := GetMotorRecords(sids...)
 		if err != nil {
@@ -188,30 +212,37 @@ func SearchHandler(c *gin.Context) {
 			c.JSON(http.StatusInternalServerError, resp)
 			return
 		}
-		for i, record := range records {
+		for _, mongo_record := range mongo_records {
 			for _, motor_record := range motor_records {
-				if motor_record.ScanId == uint64(record["sid"].(int64)) {
-					records[i] = CompleteRecord(record, motor_record)
+				if motor_record.ScanId == mongo_record.ScanId {
+					matching_records = append(matching_records, CompleteRecord(mongo_record, motor_record))
 				}
 			}
 		}
 
 	}
 
-	c.JSON(http.StatusOK, records)
+	c.JSON(http.StatusOK, matching_records)
 	return
 }
 
 // Helper function to add a single record to the database(s)
 // (to be called as a goroutine)
-func addRecord(record map[string]any, rec_ch chan map[string]any, err_ch chan error) {
-	err := lexicon.ValidateRecord(record)
+func addRecord(record UserRecord, rec_ch chan map[string]any, err_ch chan error) {
+	var record_map map[string]any
+	err := mapstructure.Decode(record, &record_map)
 	if err != nil {
 		err_ch <- err
 		return
 	}
 
-	err = Schema.Validate(record)
+	err = lexicon.ValidateRecord(record_map)
+	if err != nil {
+		err_ch <- err
+		return
+	}
+
+	err = Schema.Validate(record_map)
 	if err != nil {
 		err_ch <- err
 		return
@@ -221,18 +252,27 @@ func addRecord(record map[string]any, rec_ch chan map[string]any, err_ch chan er
 	// the two separate dbs.
 	mongo_record, motor_record := DecomposeRecord(record)
 
-	// Submit one portion of the record to mongodb...
-	mongo.Insert(srvConfig.Config.SpecScans.MongoDB.DBName, srvConfig.Config.SpecScans.MongoDB.DBColl, []map[string]any{mongo_record})
-
-	// Now insert the motor mnes & positions record
-	sql_id, err := InsertMotors(motor_record)
+	// Insert the motor mnes & positions record
+	// (do this first since we can easily check the uniqueness of the new record's
+	//  scan ID with the SQL db)
+	_, err = InsertMotors(motor_record)
 	if err != nil {
 		err_ch <- err
 		return
 	}
 
+	// If submitting the motor record was successful, submit the other portion of
+	// the record to mongodb.
+	var mongo_record_map map[string]any
+	err = mapstructure.Decode(mongo_record, &mongo_record_map)
+	if err != nil {
+		err_ch <- err
+		return
+	}
+	mongo.Insert(srvConfig.Config.SpecScans.MongoDB.DBName, srvConfig.Config.SpecScans.MongoDB.DBColl, []map[string]any{mongo_record_map})
+
 	// Send SID of new record
-	result_record := map[string]any{"sid": sql_id}
+	result_record := map[string]any{"sid": mongo_record.ScanId}
 	rec_ch <- result_record
 }
 
@@ -245,8 +285,8 @@ func getServiceQueriesByDBType(q ql.QLManager, servicename string, query string)
 		return dbqueries, err
 	}
 	specscanquery := queries[servicename]
-	for key, val := range(specscanquery) {
-		for _, rec := range(q.Records) {
+	for key, val := range specscanquery {
+		for _, rec := range q.Records {
 			if rec.Key == key && rec.Service == servicename {
 				if dbquery, ok := dbqueries[rec.DBType]; ok {
 					dbquery[key] = val
