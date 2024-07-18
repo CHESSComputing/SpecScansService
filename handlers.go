@@ -111,7 +111,7 @@ func EditHandler(c *gin.Context) {
 // Handler for querying the databases for records
 func SearchHandler(c *gin.Context) {
 
-	var matching_records []UserRecord
+	matching_records := *new([]UserRecord)
 
 	// Parse database query from request
 	var query_request services.ServiceRequest
@@ -192,36 +192,36 @@ func SearchHandler(c *gin.Context) {
 			}
 		}
 	} else {
-		// Complete the matching records with motor positions
-		var sids []float64
-		var mongo_records []MongoRecord
-		for _, record := range records {
-			var mongo_record MongoRecord
-			err = mapstructure.Decode(record, &mongo_record)
+		if len(records) > 0 {
+			// Complete the matching records with motor positions
+			var sids []float64
+			var mongo_records []MongoRecord
+			for _, record := range records {
+				var mongo_record MongoRecord
+				err = mapstructure.Decode(record, &mongo_record)
+				if err != nil {
+					resp := services.Response("SpecScans", http.StatusInternalServerError, services.ParseError, err)
+					c.JSON(http.StatusInternalServerError, resp)
+					return
+				}
+				sids = append(sids, mongo_record.ScanId)
+				mongo_records = append(mongo_records, mongo_record)
+			}
+			motor_records, err := GetMotorRecords(sids...)
 			if err != nil {
-				resp := services.Response("SpecScans", http.StatusInternalServerError, services.ParseError, err)
+				resp := services.Response("SpecScans", http.StatusInternalServerError, services.DatabaseError, err)
 				c.JSON(http.StatusInternalServerError, resp)
 				return
 			}
-			sids = append(sids, mongo_record.ScanId)
-			mongo_records = append(mongo_records, mongo_record)
-		}
-		motor_records, err := GetMotorRecords(sids...)
-		if err != nil {
-			resp := services.Response("SpecScans", http.StatusInternalServerError, services.DatabaseError, err)
-			c.JSON(http.StatusInternalServerError, resp)
-			return
-		}
-		for _, mongo_record := range mongo_records {
-			for _, motor_record := range motor_records {
-				if motor_record.ScanId == mongo_record.ScanId {
-					matching_records = append(matching_records, CompleteRecord(mongo_record, motor_record))
+			for _, mongo_record := range mongo_records {
+				for _, motor_record := range motor_records {
+					if motor_record.ScanId == mongo_record.ScanId {
+						matching_records = append(matching_records, CompleteRecord(mongo_record, motor_record))
+					}
 				}
 			}
 		}
-
 	}
-
 	c.JSON(http.StatusOK, matching_records)
 	return
 }
