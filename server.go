@@ -40,8 +40,8 @@ func Server() {
 	mongo.InitMongoDB(srvConfig.Config.SpecScans.MongoDB.DBUri)
 
 	// Setup sqlite3 db connection
-	InitMotorsDb()
-	defer MotorsDb.db.Close()
+	InitMotorsDb("sqlite3")
+	//     defer MotorsDb.Close()
 
 	// local SpecScans schema
 	InitSchemaManager()

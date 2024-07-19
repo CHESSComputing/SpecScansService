@@ -8,7 +8,6 @@ import (
 	"path"
 	"strconv"
 	"strings"
-	"sync"
 	"text/template"
 
 	_ "github.com/mattn/go-sqlite3"
@@ -17,13 +16,8 @@ import (
 	srvConfig "github.com/CHESSComputing/golib/config"
 )
 
-// Safe to use concurrently
-type SafeDb struct {
-	db *sql.DB
-	mu sync.Mutex
-}
-
-var MotorsDb SafeDb
+// var MotorsDb is our database pointer
+var MotorsDb *sql.DB
 
 type MotorRecord struct {
 	ScanId float64
@@ -41,8 +35,8 @@ type MotorsDbQuery struct {
 	MotorPositionQueries []MotorPositionQuery
 }
 
-func InitMotorsDb() {
-	db, err := sql.Open("sqlite3", srvConfig.Config.SpecScans.DBFile)
+func InitMotorsDb(dbtype string) {
+	db, err := sql.Open(dbtype, srvConfig.Config.SpecScans.DBFile)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -52,15 +46,30 @@ func InitMotorsDb() {
 		log.Fatal(err)
 	}
 	log.Println("Pinged motors db")
+	db.SetMaxOpenConns(srvConfig.Config.DataBookkeeping.MaxDBConnections)
+	db.SetMaxIdleConns(srvConfig.Config.DataBookkeeping.MaxIdleConnections)
+	// Disables connection pool for sqlite3. This enables some concurrency with sqlite3 databases
+	// See https://stackoverflow.com/questions/57683132/turning-off-connection-pool-for-go-http-client
+	// and https://sqlite.org/wal.html
+	// This only will apply to sqlite3 databases
+	if dbtype == "sqlite3" {
+		db.Exec("PRAGMA journal_mode=WAL;")
+	}
 
-	MotorsDb = SafeDb{db: db}
+	MotorsDb = db
 }
 
 func InsertMotors(r MotorRecord) (int64, error) {
+	tx, err := MotorsDb.Begin()
+	if err != nil {
+		return -1, err
+	}
+	defer tx.Rollback()
+
 	// Insert the given motor record to the three tables that compose the static
 	// motor positions database.
 	log.Printf("Inserting motor record: %v", r)
-	result, err := MotorsDb.db.Exec("INSERT INTO ScanIds (sid) VALUES (?)", r.ScanId)
+	result, err := tx.Exec("INSERT INTO ScanIds (sid) VALUES (?)", r.ScanId)
 	if err != nil {
 		log.Printf("Could not insert record to ScanIds table; error: %v", err)
 		return -1, err
@@ -72,7 +81,7 @@ func InsertMotors(r MotorRecord) (int64, error) {
 	}
 	var motor_id int64
 	for mne, pos := range r.Motors {
-		result, err = MotorsDb.db.Exec("INSERT INTO MotorMnes (scan_id, motor_mne) VALUES (?, ?)", scan_id, mne)
+		result, err = tx.Exec("INSERT INTO MotorMnes (scan_id, motor_mne) VALUES (?, ?)", scan_id, mne)
 		if err != nil {
 			log.Printf("Could not insert record to MotorMnes table; error: %v", err)
 			continue
@@ -82,12 +91,13 @@ func InsertMotors(r MotorRecord) (int64, error) {
 			log.Printf("Could not get ID of new record in MotorMnes; error: %v", err)
 			continue
 		}
-		result, err = MotorsDb.db.Exec("INSERT INTO MotorPositions (motor_id, motor_position) VALUES (?, ?)", motor_id, pos)
+		result, err = tx.Exec("INSERT INTO MotorPositions (motor_id, motor_position) VALUES (?, ?)", motor_id, pos)
 		if err != nil {
 			log.Printf("Could not insert record to MotorPositions table; error: %v", err)
 		}
 	}
-	return scan_id, nil
+	err = tx.Commit()
+	return scan_id, err
 }
 
 func QueryMotorPosition(mne string, pos float64) []MotorRecord {
@@ -176,7 +186,7 @@ func queryMotorsDb(query MotorsDbQuery) []MotorRecord {
 		log.Printf("Could not get appropriate SQL query statement; error: %v", err)
 		return motor_records
 	}
-	rows, err := MotorsDb.db.Query(statement)
+	rows, err := MotorsDb.Query(statement)
 	if err != nil {
 		log.Printf("Could not query motor positions database; error: %v", err)
 		return motor_records
