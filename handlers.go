@@ -128,27 +128,46 @@ func SearchHandler(c *gin.Context) {
 	limit := query_request.ServiceQuery.Limit
 
 	// Get query string as map of values
+	log.Printf("### query: %+v", query)
 	queries, err := getServiceQueriesByDBType(QLM, "SpecScans", query)
 	if err != nil {
 		resp := services.Response("SpecScans", http.StatusInternalServerError, services.ParseError, err)
 		c.JSON(http.StatusInternalServerError, resp)
 		return
 	}
-	log.Printf("Mongo query: %v", queries["mongo"])
-	log.Printf("SQL query: %v", queries["sql"])
+	//     log.Printf("Mongo query: %v", queries["mongo"])
+	//     log.Printf("SQL query: %v", queries["sql"])
+	log.Printf("queries %+v", queries)
+
+	// parse the query (JSON string) into a Go map
+	var bmap map[string]any
+	if err := json.Unmarshal([]byte(query), &bmap); err != nil {
+		log.Fatalf("Error parsing JSON: %v", err)
+	}
+	// extract motors part from the query and construct proper SQL
+	var motorsQuery map[string]any
+	if motors, ok := bmap["motors"]; ok {
+		log.Printf("### motors %+v, type %T", motors, motors)
+		motorsQuery = motors.(map[string]any)
+		delete(bmap, "motors")
+	}
+
+	// convert the Go map to a bson.M object to pass to mongo
+	bspec := bson.M(bmap)
 
 	// Query the mongodb
-	nrecords := mongo.Count(srvConfig.Config.SpecScans.MongoDB.DBName, srvConfig.Config.SpecScans.MongoDB.DBColl, queries["mongo"])
-	records := mongo.Get(srvConfig.Config.SpecScans.MongoDB.DBName, srvConfig.Config.SpecScans.MongoDB.DBColl, queries["mongo"], idx, limit)
+	nrecords := mongo.Count(srvConfig.Config.SpecScans.MongoDB.DBName, srvConfig.Config.SpecScans.MongoDB.DBColl, bspec)
+	records := mongo.Get(srvConfig.Config.SpecScans.MongoDB.DBName, srvConfig.Config.SpecScans.MongoDB.DBColl, bspec, idx, limit)
 	if Verbose > 0 {
-		log.Printf("spec %v nrecords %d return idx=%d limit=%d", queries["mongo"], nrecords, idx, limit)
+		log.Printf("spec %v nrecords %d return idx=%d limit=%d", bspec, nrecords, idx, limit)
 	}
 
 	// Query the SQL db of motor positions
-	if queries["sql"] != nil {
-		motor_records := QueryMotorsDb(queries["sql"]["motors"])
+	if motorsQuery != nil {
+		motor_records := QueryMotorsDb(motorsQuery)
+		log.Println("### MotorsQuery", motorsQuery, "found", len(motor_records), "records")
 
-		if queries["mongo"] != nil {
+		if nrecords > 1 {
 			// Aggregate intersection of results from both dbs
 			var intersection_records []UserRecord
 			for _, record := range records {
