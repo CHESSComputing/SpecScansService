@@ -23,21 +23,23 @@ type UserRecord struct {
 	Comments    []string           `json:"comments" mapstructure:"comments"`
 	SpecVersion string             `json:"spec_version" mapstructure:"spec_version"`
 	Motors      map[string]float64 `json:"motors" mapstructure:"motors"`
+	EpicsPvs    map[string]any     `json:"epics_pvs" mapstructure:"epics_pvs"`
 }
 
 type MongoRecord struct {
-	ScanId      float64  `mapstructure:"sid"`
-	DatasetId   string   `mapstructure:"did"`
-	Cycle       string   `mapstructure:"cycle"`
-	Beamline    string   `mapstructure:"beamline"`
-	Btr         string   `mapstructure:"btr"`
-	SpecFile    string   `mapstructure:"spec_file"`
-	ScanNumber  int8     `mapstructure:"scan_number"`
-	StartTime   float64  `mapstructure:"start_time"`
-	Command     string   `mapstructure:"command"`
-	Status      string   `mapstructure:"status"`
-	Comments    []string `mapstructure:"comments"`
-	SpecVersion string   `mapstructure:"spec_version"`
+	ScanId      float64        `mapstructure:"sid"`
+	DatasetId   string         `mapstructure:"did"`
+	Cycle       string         `mapstructure:"cycle"`
+	Beamline    string         `mapstructure:"beamline"`
+	Btr         string         `mapstructure:"btr"`
+	SpecFile    string         `mapstructure:"spec_file"`
+	ScanNumber  int8           `mapstructure:"scan_number"`
+	StartTime   float64        `mapstructure:"start_time"`
+	Command     string         `mapstructure:"command"`
+	Status      string         `mapstructure:"status"`
+	Comments    []string       `mapstructure:"comments"`
+	SpecVersion string         `mapstructure:"spec_version"`
+	EpicsPvs    map[string]any `mapstructure:"epics_pvs"`
 }
 
 func InitSchemaManager() {
@@ -68,6 +70,7 @@ func DecomposeRecord(user_record UserRecord) (MongoRecord, MotorRecord) {
 		Status:      user_record.Status,
 		Comments:    user_record.Comments,
 		SpecVersion: user_record.SpecVersion,
+		EpicsPvs:    user_record.EpicsPvs,
 	}
 	motor_record := MotorRecord{
 		ScanId: user_record.StartTime,
@@ -91,6 +94,7 @@ func CompleteRecord(mongo_record MongoRecord, motor_record MotorRecord) UserReco
 		Status:      mongo_record.Status,
 		Comments:    mongo_record.Comments,
 		SpecVersion: mongo_record.SpecVersion,
+		EpicsPvs:    mongo_record.EpicsPvs,
 		Motors:      motor_record.Motors,
 	}
 	return record

@@ -75,12 +75,19 @@
 	"optional": false,
 	"description": "SPEC version",
 	"utils": ""
-},
+    },
     {
 	"key": "motors",
 	"type": "dict",
 	"optional": false,
 	"description": "SPEC scan command",
 	"utils": ""
+    },
+    {
+  "key": "epics_pvs",
+  "type": "dict",
+  "optional": false,
+  "description": "SPEC scan command",
+  "utils": ""
     }
 ]
