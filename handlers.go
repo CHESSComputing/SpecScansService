@@ -241,7 +241,23 @@ func SearchHandler(c *gin.Context) {
 			}
 		}
 	}
-	c.JSON(http.StatusOK, matching_records)
+	var map_records []map[string]any
+	err = mapstructure.Decode(matching_records, &map_records)
+	if err != nil {
+		resp := services.Response("SpecScans", http.StatusInternalServerError, services.ParseError, err)
+		c.JSON(http.StatusInternalServerError, resp)
+		return
+	}
+	response := services.ServiceResponse{
+		HttpCode: http.StatusOK,
+		SrvCode:  services.OK,
+		Service:  "SpecScans",
+		Results: services.ServiceResults{
+			NRecords: len(map_records),
+			Records:  map_records,
+		},
+	}
+	c.JSON(http.StatusOK, response)
 	return
 }
 
