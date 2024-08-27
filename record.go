@@ -5,6 +5,9 @@ import (
 
 	schema "github.com/CHESSComputing/golib/beamlines"
 	srvConfig "github.com/CHESSComputing/golib/config"
+	mongo "github.com/CHESSComputing/golib/mongo"
+	mapstructure "github.com/mitchellh/mapstructure"
+	bson "go.mongodb.org/mongo-driver/bson"
 )
 
 var Schema *schema.Schema
@@ -98,4 +101,65 @@ func CompleteRecord(mongo_record MongoRecord, motor_record MotorRecord) UserReco
 		Motors:      motor_record.Motors,
 	}
 	return record
+}
+
+// Return the completed UserRecords corresponding to the MongoRecords provided
+func CompleteMongoRecords(mongo_records ...MongoRecord) ([]UserRecord, error) {
+	var user_records []UserRecord
+	var sids []float64
+	for _, mongo_record := range mongo_records {
+		sids = append(sids, mongo_record.ScanId)
+	}
+	motor_records, err := GetMotorRecords(sids...)
+	if err != nil {
+		return user_records, err
+	}
+	for _, mongo_record := range mongo_records {
+		for _, motor_record := range motor_records {
+			if motor_record.ScanId == mongo_record.ScanId {
+				user_records = append(user_records, CompleteRecord(mongo_record, motor_record))
+			}
+		}
+	}
+	return user_records, nil
+}
+
+// Return the completed UserRecords correcponding to the MotorRecords provided
+func CompleteMotorRecords(motor_records ...MotorRecord) ([]UserRecord, error) {
+	var user_records []UserRecord
+	var sids []float64
+	for _, motor_record := range motor_records {
+		sids = append(sids, motor_record.ScanId)
+	}
+	mongo_query := bson.M{"sid": bson.M{"$in": sids}}
+	mongo_records := mongo.Get(srvConfig.Config.SpecScans.MongoDB.DBName, srvConfig.Config.SpecScans.MongoDB.DBColl, mongo_query, 0, 0)
+	for _, mongo_record_map := range mongo_records {
+		var mongo_record MongoRecord
+		err := mapstructure.Decode(mongo_record_map, &mongo_record)
+		if err != nil {
+			return user_records, err
+		}
+		for _, motor_record := range motor_records {
+			if motor_record.ScanId == mongo_record.ScanId {
+				user_records = append(user_records, CompleteRecord(mongo_record, motor_record))
+				break
+			}
+		}
+	}
+	return user_records, nil
+}
+
+// Return the completed UserRecords that can be constructed from the MongoRecords
+// and MotorRecords provided (CanIds of returned UserRecords will be the
+// intersection of the ScanIds of both sets)
+func getIntersectionRecords(mongo_records []MongoRecord, motor_records []MotorRecord) []UserRecord {
+	var user_records []UserRecord
+	for _, mongo_record := range mongo_records {
+		for _, motor_record := range motor_records {
+			if mongo_record.ScanId == motor_record.ScanId {
+				user_records = append(user_records, CompleteRecord(mongo_record, motor_record))
+			}
+		}
+	}
+	return user_records
 }

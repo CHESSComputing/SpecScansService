@@ -117,28 +117,33 @@ func GetMotorRecords(sids ...float64) ([]MotorRecord, error) {
 	return queryMotorsDb(query), nil
 }
 
-func QueryMotorsDb(query any) []MotorRecord {
+func QueryMotorsDb(query bson.M) []MotorRecord {
 	motorsdb_query := translateQuery(query)
+	if Verbose > 0 {
+		log.Printf("motorsdb_query: %+v\n", motorsdb_query)
+	}
 	return queryMotorsDb(motorsdb_query)
 }
 
-func translateQuery(query any) MotorsDbQuery {
+func translateQuery(query bson.M) MotorsDbQuery {
 	var motorsdb_query MotorsDbQuery
-	var _query []any
-	switch query.(type) {
-	case string:
-		_query = []any{query.(string)}
-	case bson.M, map[string]any:
-		_query = []any{query}
-	// case map[string]any:
-	// 	_query = []any{query}
-	default:
-		_query = query.([]any)
+
+	// Consolidate values from user query keys like "motors" and "motors.*" so
+	// that we have a query map where keys are motor names only.
+	var position_queries []bson.M
+	for key, val := range query {
+		if key == "motors" {
+			for _key, _val := range val.(map[string]any) {
+				position_queries = append(position_queries, bson.M{_key: _val})
+			}
+		} else {
+			queryKey := strings.TrimPrefix(key, "motors.")
+			position_queries = append(position_queries, bson.M{queryKey: val})
+		}
 	}
-	for _, v := range _query {
+	for _, v := range position_queries {
 		motorsdb_query.MotorPositionQueries = append(motorsdb_query.MotorPositionQueries, translatePositionQuery(v))
 	}
-
 	return motorsdb_query
 }
 
@@ -147,8 +152,8 @@ func translatePositionQuery(query any) MotorPositionQuery {
 	switch query.(type) {
 	case string:
 		position_query.Mne = query.(string)
-	case bson.M, map[string]any:
-		for k, v := range query.(map[string]any) {
+	case bson.M: //, map[string]any:
+		for k, v := range query.(bson.M) {
 			position_query.Mne = k
 			switch v.(type) {
 			case float64, float32:
@@ -191,25 +196,25 @@ func queryMotorsDb(query MotorsDbQuery) []MotorRecord {
 		log.Printf("Could not query motor positions database; error: %v", err)
 		return motor_records
 	}
-	return getMotorRecords(rows)
+	return parseMotorRecords(rows)
 }
 
-func getMotorRecords(rows *sql.Rows) []MotorRecord {
+func parseMotorRecords(rows *sql.Rows) []MotorRecord {
 	// Helper for parsing grouped results of sql query
 	var motor_records []MotorRecord
 	// Parse the first record;
 	// need to do this outside the loop if there is only one row of results.
 	rows.Next()
-	motor_record := getMotorRecord(rows)
+	motor_record := parseMotorRecord(rows)
 	motor_records = append(motor_records, motor_record)
 	for rows.Next() {
-		motor_record := getMotorRecord(rows)
+		motor_record := parseMotorRecord(rows)
 		motor_records = append(motor_records, motor_record)
 	}
 	return motor_records
 }
 
-func getMotorRecord(rows *sql.Rows) MotorRecord {
+func parseMotorRecord(rows *sql.Rows) MotorRecord {
 	// Helper for parsing grouped results of sql query at the current cursor position only
 	motor_record := MotorRecord{}
 	_motor_mnes, _motor_positions := "", ""

@@ -7,6 +7,7 @@ import (
 	"io/ioutil"
 	"log"
 	"net/http"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 	mapstructure "github.com/mitchellh/mapstructure"
@@ -135,110 +136,70 @@ func SearchHandler(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, resp)
 		return
 	}
-	//     log.Printf("Mongo query: %v", queries["mongo"])
-	//     log.Printf("SQL query: %v", queries["sql"])
 	log.Printf("queries %+v", queries)
 
-	// parse the query (JSON string) into a Go map
-	var bmap map[string]any
-	if err := json.Unmarshal([]byte(query), &bmap); err != nil {
-		log.Fatalf("Error parsing JSON: %v", err)
-	}
-	// extract motors part from the query and construct proper SQL
-	var motorsQuery map[string]any
-	if motors, ok := bmap["motors"]; ok {
-		log.Printf("### motors %+v, type %T", motors, motors)
-		motorsQuery = motors.(map[string]any)
-		delete(bmap, "motors")
-	}
-
-	// convert the Go map to a bson.M object to pass to mongo
-	bspec := bson.M(bmap)
-
-	// Query the mongodb
-	nrecords := mongo.Count(srvConfig.Config.SpecScans.MongoDB.DBName, srvConfig.Config.SpecScans.MongoDB.DBColl, bspec)
-	records := mongo.Get(srvConfig.Config.SpecScans.MongoDB.DBName, srvConfig.Config.SpecScans.MongoDB.DBColl, bspec, idx, limit)
-	if Verbose > 0 {
-		log.Printf("spec %v nrecords %d return idx=%d limit=%d", bspec, nrecords, idx, limit)
-	}
-
-	// Query the SQL db of motor positions
-	if motorsQuery != nil {
-		motor_records := QueryMotorsDb(motorsQuery)
-		log.Println("### MotorsQuery", motorsQuery, "found", len(motor_records), "records")
-
-		if nrecords > 1 {
-			// Aggregate intersection of results from both dbs
-			var intersection_records []UserRecord
-			for _, record := range records {
-				var mongo_record MongoRecord
-				err = mapstructure.Decode(record, &mongo_record)
-				if err != nil {
-					resp := services.Response("SpecScans", http.StatusInternalServerError, services.ParseError, err)
-					c.JSON(http.StatusInternalServerError, resp)
-					return
-				}
-				for _, motor_record := range motor_records {
-					if motor_record.ScanId == mongo_record.ScanId {
-						intersection_records = append(intersection_records, CompleteRecord(mongo_record, motor_record))
-						break
-					}
-				}
-			}
-			matching_records = intersection_records
-		} else {
-			// Complete the matching records with mongodb documents
-			var sids []float64
-			for _, motor_record := range motor_records {
-				sids = append(sids, motor_record.ScanId)
-			}
-			mongo_query := bson.M{"sid": bson.M{"$in": sids}}
-			mongo_records := mongo.Get(srvConfig.Config.SpecScans.MongoDB.DBName, srvConfig.Config.SpecScans.MongoDB.DBColl, mongo_query, idx, limit)
-			for _, _mongo_record := range mongo_records {
-				var mongo_record MongoRecord
-				err = mapstructure.Decode(_mongo_record, &mongo_record)
-				if err != nil {
-					resp := services.Response("SpecScans", http.StatusInternalServerError, services.ParseError, err)
-					c.JSON(http.StatusInternalServerError, resp)
-					return
-				}
-				for _, motor_record := range motor_records {
-					if motor_record.ScanId == mongo_record.ScanId {
-						matching_records = append(matching_records, CompleteRecord(mongo_record, motor_record))
-						break
-					}
-				}
-			}
-		}
-	} else {
-		if len(records) > 0 {
-			// Complete the matching records with motor positions
-			var sids []float64
-			var mongo_records []MongoRecord
-			for _, record := range records {
-				var mongo_record MongoRecord
-				err = mapstructure.Decode(record, &mongo_record)
-				if err != nil {
-					resp := services.Response("SpecScans", http.StatusInternalServerError, services.ParseError, err)
-					c.JSON(http.StatusInternalServerError, resp)
-					return
-				}
-				sids = append(sids, mongo_record.ScanId)
-				mongo_records = append(mongo_records, mongo_record)
-			}
-			motor_records, err := GetMotorRecords(sids...)
+	if queries["mongo"] == nil {
+		if queries["sql"] == nil {
+			// queries["mongo"] == nil && queries["sql"] == nil
+			// User query is empty -- match _all_ records
+			mongo_records, err := getMongoRecords(bson.M{}, idx, limit)
 			if err != nil {
-				resp := services.Response("SpecScans", http.StatusInternalServerError, services.DatabaseError, err)
+				resp := services.Response("SpecScans", http.StatusInternalServerError, services.QueryError, err)
 				c.JSON(http.StatusInternalServerError, resp)
 				return
 			}
-			for _, mongo_record := range mongo_records {
-				for _, motor_record := range motor_records {
-					if motor_record.ScanId == mongo_record.ScanId {
-						matching_records = append(matching_records, CompleteRecord(mongo_record, motor_record))
-					}
-				}
+			matching_records, err = CompleteMongoRecords(mongo_records...)
+			if err != nil {
+				resp := services.Response("SpecScans", http.StatusInternalServerError, services.QueryError, err)
+				c.JSON(http.StatusInternalServerError, resp)
+				return
 			}
+		} else {
+			// queries["mongo"] == nil && queries["sql"] != nil
+			// Search for matching records by motor positions only, then complete all
+			// the matching motor records with their mongodb portion
+			motor_records, err := getMotorRecords(queries["sql"])
+			if err != nil {
+				resp := services.Response("SpecScans", http.StatusInternalServerError, services.QueryError, err)
+				c.JSON(http.StatusInternalServerError, resp)
+				return
+			}
+			matching_records, err = CompleteMotorRecords(motor_records...)
+			if err != nil {
+				resp := services.Response("SpecScans", http.StatusInternalServerError, services.QueryError, err)
+				c.JSON(http.StatusInternalServerError, resp)
+				return
+			}
+		}
+	} else {
+		mongo_records, err := getMongoRecords(queries["mongo"], idx, limit)
+		if err != nil {
+			resp := services.Response("SpecScans", http.StatusInternalServerError, services.QueryError, err)
+			c.JSON(http.StatusInternalServerError, resp)
+			return
+		}
+		if queries["sql"] == nil {
+			// queries["mongo"] != nil && queries["sql"] == nil
+			// Search for matching records in the mongodb only, then complete all
+			// matching mongo records with their motors component
+			matching_records, err = CompleteMongoRecords(mongo_records...)
+			if err != nil {
+				resp := services.Response("SpecScans", http.StatusInternalServerError, services.QueryError, err)
+				c.JSON(http.StatusInternalServerError, resp)
+				return
+			}
+		} else {
+			// queries["mongo"] != nil && queries["sql"] != nil
+			// Search both dbs separately, then return the _intersection_ of the two
+			// matching sets (NB: doesn't allow conditional filtering on fields in
+			// separate dbs!).
+			motor_records, err := getMotorRecords(queries["sql"])
+			if err != nil {
+				resp := services.Response("SpecScans", http.StatusInternalServerError, services.QueryError, err)
+				c.JSON(http.StatusInternalServerError, resp)
+				return
+			}
+			matching_records = getIntersectionRecords(mongo_records, motor_records)
 		}
 	}
 	var map_records []map[string]any
@@ -322,10 +283,9 @@ func getServiceQueriesByDBType(q ql.QLManager, servicename string, query string)
 	specscanquery := queries[servicename]
 	for key, val := range specscanquery {
 		for _, rec := range q.Records {
-			if rec.Key == key && rec.Service == servicename {
-				if dbquery, ok := dbqueries[rec.DBType]; ok {
-					dbquery[key] = val
-					dbqueries[rec.DBType] = dbquery
+			if rec.Service == servicename && (key == rec.Key || strings.HasPrefix(key, fmt.Sprintf("%s.", rec.Key))) {
+				if _, ok := dbqueries[rec.DBType]; ok {
+					dbqueries[rec.DBType][key] = val
 				} else {
 					dbqueries[rec.DBType] = bson.M{key: val}
 				}
@@ -333,4 +293,31 @@ func getServiceQueriesByDBType(q ql.QLManager, servicename string, query string)
 		}
 	}
 	return dbqueries, nil
+}
+
+// Get matching records from the mongodb only
+func getMongoRecords(query bson.M, idx int, limit int) ([]MongoRecord, error) {
+	var mongo_records []MongoRecord
+	nrecords := mongo.Count(srvConfig.Config.SpecScans.MongoDB.DBName, srvConfig.Config.SpecScans.MongoDB.DBColl, query)
+	records := mongo.Get(srvConfig.Config.SpecScans.MongoDB.DBName, srvConfig.Config.SpecScans.MongoDB.DBColl, query, idx, limit)
+	if Verbose > 0 {
+		log.Printf("spec %v nrecords %d return idx=%d limit=%d", query, nrecords, idx, limit)
+	}
+	for _, record := range records {
+		var mongo_record MongoRecord
+		err := mapstructure.Decode(record, &mongo_record)
+		if err != nil {
+			return mongo_records, err
+		}
+		mongo_records = append(mongo_records, mongo_record)
+	}
+	return mongo_records, nil
+}
+
+func getMotorRecords(query bson.M) ([]MotorRecord, error) {
+	motor_records := QueryMotorsDb(query)
+	if Verbose > 0 {
+		log.Printf("query %v found %d records\n", query, len(motor_records))
+	}
+	return motor_records, nil
 }
