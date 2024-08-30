@@ -71,9 +71,21 @@ func AddHandler(c *gin.Context) {
 			log.Printf("Error adding record: %s", add_err)
 		}
 	}
+	var httpcode, srvcode int
+	if result_err == "" {
+		httpcode = http.StatusOK
+		srvcode = services.OK
+	} else {
+		if len(result_records) == 0 {
+			httpcode = http.StatusUnprocessableEntity
+		} else {
+			httpcode = http.StatusMultiStatus
+		}
+		srvcode = services.TransactionError
+	}
 	response := services.ServiceResponse{
-		HttpCode: http.StatusOK,
-		SrvCode:  services.OK,
+		HttpCode: httpcode,
+		SrvCode:  srvcode,
 		Service:  "SpecScans",
 		Error:    result_err,
 		Results: services.ServiceResults{
