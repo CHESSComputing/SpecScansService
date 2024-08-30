@@ -6,6 +6,7 @@ import (
 	"errors"
 	"log"
 	"path"
+	"regexp"
 	"strconv"
 	"strings"
 	"text/template"
@@ -190,6 +191,11 @@ func queryMotorsDb(query MotorsDbQuery) []MotorRecord {
 	if err != nil {
 		log.Printf("Could not get appropriate SQL query statement; error: %v", err)
 		return motor_records
+	}
+	if Verbose > 1 {
+		// Trim extraneous newlines for log
+		re := regexp.MustCompile(`\s+`)
+		log.Printf("Motors db query SQL statement: %s", re.ReplaceAll([]byte(statement), []byte(" ")))
 	}
 	rows, err := MotorsDb.Query(statement)
 	if err != nil {
