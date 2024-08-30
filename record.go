@@ -26,7 +26,7 @@ type UserRecord struct {
 	Comments    []string           `json:"comments" mapstructure:"comments"`
 	SpecVersion string             `json:"spec_version" mapstructure:"spec_version"`
 	Motors      map[string]float64 `json:"motors" mapstructure:"motors"`
-	EpicsPvs    map[string]any     `json:"epics_pvs" mapstructure:"epics_pvs"`
+	Variables   map[string]any     `json:"variables" mapstructure:"variables"`
 }
 
 type MongoRecord struct {
@@ -42,7 +42,8 @@ type MongoRecord struct {
 	Status      string         `mapstructure:"status"`
 	Comments    []string       `mapstructure:"comments"`
 	SpecVersion string         `mapstructure:"spec_version"`
-	EpicsPvs    map[string]any `mapstructure:"epics_pvs"`
+	Variables     map[string]any `mapstructure:"variables"`
+
 }
 
 func InitSchemaManager() {
@@ -73,7 +74,7 @@ func DecomposeRecord(user_record UserRecord) (MongoRecord, MotorRecord) {
 		Status:      user_record.Status,
 		Comments:    user_record.Comments,
 		SpecVersion: user_record.SpecVersion,
-		EpicsPvs:    user_record.EpicsPvs,
+		Variables:   user_record.Variables,
 	}
 	motor_record := MotorRecord{
 		ScanId: user_record.StartTime,
@@ -97,8 +98,8 @@ func CompleteRecord(mongo_record MongoRecord, motor_record MotorRecord) UserReco
 		Status:      mongo_record.Status,
 		Comments:    mongo_record.Comments,
 		SpecVersion: mongo_record.SpecVersion,
-		EpicsPvs:    mongo_record.EpicsPvs,
 		Motors:      motor_record.Motors,
+		Variables:   mongo_record.Variables,
 	}
 	return record
 }

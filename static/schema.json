@@ -84,7 +84,7 @@
 	"utils": ""
     },
     {
-  "key": "epics_pvs",
+  "key": "variables",
   "type": "dict",
   "optional": false,
   "description": "SPEC scan command",
