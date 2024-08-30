@@ -107,6 +107,9 @@ func CompleteRecord(mongo_record MongoRecord, motor_record MotorRecord) UserReco
 // Return the completed UserRecords corresponding to the MongoRecords provided
 func CompleteMongoRecords(mongo_records ...MongoRecord) ([]UserRecord, error) {
 	var user_records []UserRecord
+	if len(mongo_records) == 0 {
+		return user_records, nil
+	}
 	var sids []float64
 	for _, mongo_record := range mongo_records {
 		sids = append(sids, mongo_record.ScanId)
@@ -128,6 +131,9 @@ func CompleteMongoRecords(mongo_records ...MongoRecord) ([]UserRecord, error) {
 // Return the completed UserRecords correcponding to the MotorRecords provided
 func CompleteMotorRecords(motor_records ...MotorRecord) ([]UserRecord, error) {
 	var user_records []UserRecord
+	if len(motor_records) == 0 {
+		return user_records, nil
+	}
 	var sids []float64
 	for _, motor_record := range motor_records {
 		sids = append(sids, motor_record.ScanId)
