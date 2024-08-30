@@ -24,7 +24,7 @@ WHERE
         {{ else if .Min }}
           P.motor_position>{{ .Min }}
         {{ else if .Max }}
-          P.motor_position<{{ .Min }}
+          P.motor_position<{{ .Max }}
         {{ end }}
 
         {{ if and .Exact (or .Min .Max) }}
