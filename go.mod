@@ -1,13 +1,13 @@
 module github.com/CHESSComputing/SpecScansService
 
-go 1.22.5
+go 1.23.1
 
 require (
-	github.com/CHESSComputing/golib v0.3.3
+	github.com/CHESSComputing/golib v0.3.5
 	github.com/gin-gonic/gin v1.10.0
 	github.com/mattn/go-sqlite3 v2.0.3+incompatible
 	github.com/mitchellh/mapstructure v1.5.0
-	go.mongodb.org/mongo-driver v1.16.0
+	go.mongodb.org/mongo-driver v1.16.1
 )
 
 require (
@@ -69,6 +69,7 @@ require (
 	github.com/twitchyliquid64/golang-asm v0.15.1 // indirect
 	github.com/ugorji/go/codec v1.2.12 // indirect
 	github.com/ulule/limiter/v3 v3.11.2 // indirect
+	github.com/vkuznet/cryptoutils v0.0.2 // indirect
 	github.com/vkuznet/http-logging v0.0.0-20210729230351-fc50acd79868 // indirect
 	github.com/xdg-go/pbkdf2 v1.0.0 // indirect
 	github.com/xdg-go/scram v1.1.2 // indirect
