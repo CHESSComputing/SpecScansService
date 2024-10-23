@@ -225,6 +225,7 @@ func SearchHandler(c *gin.Context) {
 		HttpCode: http.StatusOK,
 		SrvCode:  services.OK,
 		Service:  "SpecScans",
+		ServiceQuery: query_request.ServiceQuery,
 		Results: services.ServiceResults{
 			NRecords: len(map_records),
 			Records:  map_records,
