@@ -140,6 +140,14 @@ func SearchHandler(c *gin.Context) {
 	idx := query_request.ServiceQuery.Idx
 	limit := query_request.ServiceQuery.Limit
 
+	// Check if query string is valid BSON
+	var query_bson map[string]interface{}
+	err := bson.Unmarshal([]byte(query), &query_bson)
+	if err != nil {
+		// If not, assume the string provided is a DID & reformat the query accordingly
+		query = fmt.Sprintf("{\"did\": \"%s\"}", query)
+	}
+
 	// Get query string as map of values
 	log.Printf("### query: %+v", query)
 	queries, err := getServiceQueriesByDBType(QLM, "SpecScans", query)
@@ -222,9 +230,9 @@ func SearchHandler(c *gin.Context) {
 		return
 	}
 	response := services.ServiceResponse{
-		HttpCode: http.StatusOK,
-		SrvCode:  services.OK,
-		Service:  "SpecScans",
+		HttpCode:     http.StatusOK,
+		SrvCode:      services.OK,
+		Service:      "SpecScans",
 		ServiceQuery: query_request.ServiceQuery,
 		Results: services.ServiceResults{
 			NRecords: len(map_records),
