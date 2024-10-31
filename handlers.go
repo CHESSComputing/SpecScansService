@@ -140,11 +140,19 @@ func SearchHandler(c *gin.Context) {
 	idx := query_request.ServiceQuery.Idx
 	limit := query_request.ServiceQuery.Limit
 
-	// Check if query string is valid BSON
-	var query_bson map[string]interface{}
-	err := bson.Unmarshal([]byte(query), &query_bson)
+	spec, err := ql.ParseQuery(query)
+	if Verbose > 0 {
+		log.Printf("search query='%s' spec=%+v", query, spec)
+	}
 	if err != nil {
-		// If not, assume the string provided is a DID & reformat the query accordingly
+		rec := services.Response("SpecScans", http.StatusInternalServerError, services.ParseError, err)
+		c.JSON(http.StatusInternalServerError, rec)
+		return
+	}
+	if len(spec) == 0 &&
+		strings.Contains(query, srvConfig.Config.DID.Separator) &&
+		strings.Contains(query, srvConfig.Config.DID.Divider) {
+		// User's query string did not represent a mapping, but it could be a DID.
 		query = fmt.Sprintf("{\"did\": \"%s\"}", query)
 	}
 
