@@ -2,6 +2,7 @@ package main
 
 import (
 	"log"
+	"time"
 
 	schema "github.com/CHESSComputing/golib/beamlines"
 	srvConfig "github.com/CHESSComputing/golib/config"
@@ -42,8 +43,7 @@ type MongoRecord struct {
 	Status      string         `mapstructure:"status"`
 	Comments    []string       `mapstructure:"comments"`
 	SpecVersion string         `mapstructure:"spec_version"`
-	Variables     map[string]any `mapstructure:"variables"`
-
+	Variables   map[string]any `mapstructure:"variables"`
 }
 
 func InitSchemaManager() {
@@ -61,8 +61,15 @@ func InitSchemaManager() {
 // reside in the MongoDB, and the motor positions (which will reside in the SQL
 // db).
 func DecomposeRecord(user_record UserRecord) (MongoRecord, MotorRecord) {
+	var scan_id float64
+	if user_record.ScanId < 0 {
+		// This is a test record, so force a unique scan id
+		scan_id = float64(time.Now().UnixNano()) / 1e9
+	} else {
+		scan_id = user_record.StartTime
+	}
 	mongo_record := MongoRecord{
-		ScanId:      user_record.StartTime,
+		ScanId:      scan_id,
 		DatasetId:   user_record.DatasetId,
 		Cycle:       user_record.Cycle,
 		Beamline:    user_record.Beamline,
@@ -77,7 +84,7 @@ func DecomposeRecord(user_record UserRecord) (MongoRecord, MotorRecord) {
 		Variables:   user_record.Variables,
 	}
 	motor_record := MotorRecord{
-		ScanId: user_record.StartTime,
+		ScanId: scan_id,
 		Motors: user_record.Motors,
 	}
 	return mongo_record, motor_record
