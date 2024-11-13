@@ -13,7 +13,6 @@ import (
 	mapstructure "github.com/mitchellh/mapstructure"
 	bson "go.mongodb.org/mongo-driver/bson"
 
-	auth "github.com/CHESSComputing/golib/authz"
 	srvConfig "github.com/CHESSComputing/golib/config"
 	lexicon "github.com/CHESSComputing/golib/lexicon"
 	mongo "github.com/CHESSComputing/golib/mongo"
@@ -99,25 +98,78 @@ func AddHandler(c *gin.Context) {
 
 // Handler for editing a record already in the database
 func EditHandler(c *gin.Context) {
-	// Get ID of record to edit
-	id := c.Param("id")
-	if id == "" {
-		err := errors.New("ID of record to edit not found")
-		resp := services.Response("SpecScans", http.StatusInternalServerError, services.FormDataError, err)
-		c.JSON(http.StatusInternalServerError, resp)
-		return
-	}
-	// Ensure requesting user is allowed to edit this record
-	username, err := auth.UserCredentials(c.Request)
+	// Get single record OR multiple records to edit
+	defer c.Request.Body.Close()
+	body, err := ioutil.ReadAll(c.Request.Body)
 	if err != nil {
-		resp := services.Response("SpecScans", http.StatusInternalServerError, services.CredentialsError, err)
+		log.Printf("ReadAll error: %v", err)
+		resp := services.Response("SpecScans", http.StatusInternalServerError, services.ReaderError, err)
 		c.JSON(http.StatusInternalServerError, resp)
 		return
 	}
-	// Check with BeamPass: user must associated with the BTR of this record
-	log.Printf("User %s attempting to edit record %s\n", username, id)
-	log.Printf("Placeholder: Update record %s in the database", id)
-	c.String(http.StatusOK, fmt.Sprintf("Record %s updated", id))
+
+	// Try to unmarshal body as multiple record edits
+	var edits []map[string]any
+	err = json.Unmarshal(body, &edits)
+	if err != nil {
+		// Fallback: try to unmarshal body as single record edit
+		var edit map[string]any
+		err = json.Unmarshal(body, &edit)
+		if err != nil {
+			log.Printf("Unmarshal error: %v", err)
+			resp := services.Response("SpecScans", http.StatusInternalServerError, services.UnmarshalError, err)
+			c.JSON(http.StatusInternalServerError, resp)
+			return
+		}
+		edits = []map[string]any{edit}
+	}
+
+	if Verbose > 0 {
+		log.Printf("EditHandler received request %+v", edits)
+	}
+
+	rec_ch := make(chan map[string]any)
+	err_ch := make(chan error)
+	defer close(rec_ch)
+	defer close(err_ch)
+	for _, edit := range edits {
+		go editRecord(edit, rec_ch, err_ch)
+	}
+	var result_records []map[string]any
+	var result_err string
+	for i := 0; i < len(edits); i++ {
+		select {
+		case new_record := <-rec_ch:
+			result_records = append(result_records, new_record)
+			log.Printf("Edited record: %+v", new_record)
+		case edit_err := <-err_ch:
+			result_err = fmt.Sprintf("%s; %s", result_err, edit_err)
+			log.Printf("Error editing record: %s", edit_err)
+		}
+	}
+	var httpcode, srvcode int
+	if result_err == "" {
+		httpcode = http.StatusOK
+		srvcode = services.OK
+	} else {
+		if len(result_records) == 0 {
+			httpcode = http.StatusUnprocessableEntity
+		} else {
+			httpcode = http.StatusMultiStatus
+		}
+		srvcode = services.TransactionError
+	}
+	response := services.ServiceResponse{
+		HttpCode: httpcode,
+		SrvCode:  srvcode,
+		Service:  "SpecScans",
+		Error:    result_err,
+		Results: services.ServiceResults{
+			NRecords: len(result_records),
+			Records:  result_records,
+		},
+	}
+	c.JSON(http.StatusOK, response)
 	return
 }
 
@@ -254,25 +306,11 @@ func SearchHandler(c *gin.Context) {
 // Helper function to add a single record to the database(s)
 // (to be called as a goroutine)
 func addRecord(record UserRecord, rec_ch chan map[string]any, err_ch chan error) {
-	var record_map map[string]any
-	err := mapstructure.Decode(record, &record_map)
+	_, err := validateRecord(record)
 	if err != nil {
 		err_ch <- err
 		return
 	}
-
-	err = lexicon.ValidateRecord(record_map)
-	if err != nil {
-		err_ch <- err
-		return
-	}
-
-	err = Schema.Validate(record_map)
-	if err != nil {
-		err_ch <- err
-		return
-	}
-
 	// Decompose the user-submitted record into the portions will be submitted to
 	// the two separate dbs.
 	mongo_record, motor_record := DecomposeRecord(record)
@@ -294,11 +332,98 @@ func addRecord(record UserRecord, rec_ch chan map[string]any, err_ch chan error)
 		err_ch <- err
 		return
 	}
-	mongo.Insert(srvConfig.Config.SpecScans.MongoDB.DBName, srvConfig.Config.SpecScans.MongoDB.DBColl, []map[string]any{mongo_record_map})
+	mongo.Insert(
+		srvConfig.Config.SpecScans.MongoDB.DBName,
+		srvConfig.Config.SpecScans.MongoDB.DBColl,
+		[]map[string]any{mongo_record_map})
 
 	// Send SID of new record
 	result_record := map[string]any{"sid": mongo_record.ScanId}
 	rec_ch <- result_record
+}
+
+// Helper function to edit a single record in the database(s)
+// (to be called as a goroutine)
+func editRecord(edit map[string]any, rec_ch chan map[string]any, err_ch chan error) {
+	// Get unedited version of the record to edit as map[string]any
+	// (look it up by start_time or spec_file & scan_number, whichever is available)
+	query := bson.M{}
+	sid, ok := edit["start_time"]
+	if !ok {
+		spec_file, ok := edit["spec_file"]
+		if !ok {
+			err_ch <- errors.New("Edit must contain start_time or spec_file and scan_number to identify the record to edit")
+			return
+		}
+		scan_number, ok := edit["scan_number"]
+		if !ok {
+			err_ch <- errors.New("Edit must contain start_time or spec_file and scan_number to identify the record to edit")
+			return
+		}
+		query["spec_file"] = spec_file
+		query["scan_number"] = scan_number
+	} else {
+		query["start_time"] = sid
+	}
+	original_records, err := getMongoRecords(query, 0, 0)
+	if len(original_records) != 1 {
+		err_ch <- errors.New(fmt.Sprintf("Edit request matched %d existing records. Must match exactly 1.", len(original_records)))
+		return
+	}
+	var edited_record map[string]any
+	err = mapstructure.Decode(original_records[0], &edited_record)
+	if err != nil {
+		err_ch <- err
+		return
+	}
+	for k, v := range edit {
+		edited_record[k] = v
+	}
+	_, err = validateRecord(edited_record)
+	if err != nil {
+		err_ch <- err
+		return
+	}
+	// Update the record with the edited parameters
+	update_spec := bson.M{"$set": bson.M{}}
+	for k, v := range edit {
+		if k != "start_time" && k != "spec_file" && k != "scan_number" {
+			update_spec["$set"].(bson.M)[k] = v
+		}
+	}
+	err = mongo.UpsertRecord(
+		srvConfig.Config.SpecScans.MongoDB.DBName,
+		srvConfig.Config.SpecScans.MongoDB.DBColl,
+		query,
+		update_spec,
+	)
+	if err != nil {
+		err_ch <- err
+		return
+	}
+	rec_ch <- edited_record
+}
+
+func validateRecord(record any) (bool, error) {
+	var record_map map[string]any
+	switch record.(type) {
+	case map[string]any:
+		record_map = record.(map[string]any)
+	default:
+		err := mapstructure.Decode(record, &record_map)
+		if err != nil {
+			return false, err
+		}
+	}
+	err := lexicon.ValidateRecord(record_map)
+	if err != nil {
+		return false, err
+	}
+	err = Schema.Validate(record_map)
+	if err != nil {
+		return false, err
+	}
+	return true, nil
 }
 
 // Returns map of queries for a single service sorted by the query
