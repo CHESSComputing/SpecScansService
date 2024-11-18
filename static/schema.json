@@ -1,5 +1,12 @@
 [
     {
+  "key": "sid",
+  "type": "float64",
+  "optional": true,
+  "description": "Scan ID (usually same as start_time)",
+  "utils": ""
+    },
+    {
 	"key": "cycle",
 	"type": "string",
 	"optional": false,
@@ -79,7 +86,7 @@
     {
 	"key": "motors",
 	"type": "dict",
-	"optional": false,
+	"optional": true,
 	"description": "SPEC scan command",
 	"utils": ""
     },
