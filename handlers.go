@@ -317,7 +317,7 @@ func addRecord(record UserRecord, rec_ch chan map[string]any, err_ch chan error)
 	// Insert the motor mnes & positions record
 	// (do this first since we can easily check the uniqueness of the new record's
 	//  scan ID with the SQL db)
-	_, err = InsertMotors(motor_record)
+	_, err = InsertMotors(motor_record, MotorsDb)
 	if err != nil {
 		err_ch <- err
 		return

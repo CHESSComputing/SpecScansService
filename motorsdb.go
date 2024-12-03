@@ -59,8 +59,8 @@ func InitMotorsDb(dbtype string) {
 	MotorsDb = db
 }
 
-func InsertMotors(r MotorRecord) (int64, error) {
-	tx, err := MotorsDb.Begin()
+func InsertMotors(r MotorRecord, db *sql.DB) (int64, error) {
+	tx, err := db.Begin()
 	if err != nil {
 		return -1, err
 	}
