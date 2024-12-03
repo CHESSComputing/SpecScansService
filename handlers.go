@@ -11,7 +11,6 @@ import (
 
 	"github.com/gin-gonic/gin"
 	mapstructure "github.com/mitchellh/mapstructure"
-	bson "go.mongodb.org/mongo-driver/bson"
 
 	srvConfig "github.com/CHESSComputing/golib/config"
 	lexicon "github.com/CHESSComputing/golib/lexicon"
@@ -222,7 +221,7 @@ func SearchHandler(c *gin.Context) {
 		if queries["sql"] == nil {
 			// queries["mongo"] == nil && queries["sql"] == nil
 			// User query is empty -- match _all_ records
-			mongo_records, err := getMongoRecords(bson.M{}, idx, limit)
+			mongo_records, err := getMongoRecords(map[string]any{}, idx, limit)
 			if err != nil {
 				resp := services.Response("SpecScans", http.StatusInternalServerError, services.QueryError, err)
 				c.JSON(http.StatusInternalServerError, resp)
@@ -347,7 +346,7 @@ func addRecord(record UserRecord, rec_ch chan map[string]any, err_ch chan error)
 func editRecord(edit map[string]any, rec_ch chan map[string]any, err_ch chan error) {
 	// Get unedited version of the record to edit as map[string]any
 	// (look it up by start_time or spec_file & scan_number, whichever is available)
-	query := bson.M{}
+	query := map[string]any{}
 	sid, ok := edit["start_time"]
 	if !ok {
 		spec_file, ok := edit["spec_file"]
@@ -385,10 +384,10 @@ func editRecord(edit map[string]any, rec_ch chan map[string]any, err_ch chan err
 		return
 	}
 	// Update the record with the edited parameters
-	update_spec := bson.M{"$set": bson.M{}}
+	update_spec := map[string]any{"$set": map[string]any{}}
 	for k, v := range edit {
 		if k != "start_time" && k != "spec_file" && k != "scan_number" {
-			update_spec["$set"].(bson.M)[k] = v
+			update_spec["$set"].(map[string]any)[k] = v
 		}
 	}
 	err = mongo.UpsertRecord(
@@ -428,8 +427,8 @@ func validateRecord(record any) (bool, error) {
 
 // Returns map of queries for a single service sorted by the query
 // keys' DBType
-func getServiceQueriesByDBType(q ql.QLManager, servicename string, query string) (map[string]bson.M, error) {
-	dbqueries := make(map[string]bson.M)
+func getServiceQueriesByDBType(q ql.QLManager, servicename string, query string) (map[string]map[string]any, error) {
+	dbqueries := make(map[string]map[string]any)
 	queries, err := q.ServiceQueries(query)
 	if err != nil {
 		return dbqueries, err
@@ -441,7 +440,7 @@ func getServiceQueriesByDBType(q ql.QLManager, servicename string, query string)
 				if _, ok := dbqueries[rec.DBType]; ok {
 					dbqueries[rec.DBType][key] = val
 				} else {
-					dbqueries[rec.DBType] = bson.M{key: val}
+					dbqueries[rec.DBType] = map[string]any{key: val}
 				}
 			}
 		}
@@ -450,7 +449,7 @@ func getServiceQueriesByDBType(q ql.QLManager, servicename string, query string)
 }
 
 // Get matching records from the mongodb only
-func getMongoRecords(query bson.M, idx int, limit int) ([]MongoRecord, error) {
+func getMongoRecords(query map[string]any, idx int, limit int) ([]MongoRecord, error) {
 	var mongo_records []MongoRecord
 	nrecords := mongo.Count(srvConfig.Config.SpecScans.MongoDB.DBName, srvConfig.Config.SpecScans.MongoDB.DBColl, query)
 	records := mongo.Get(srvConfig.Config.SpecScans.MongoDB.DBName, srvConfig.Config.SpecScans.MongoDB.DBColl, query, idx, limit)
@@ -468,7 +467,7 @@ func getMongoRecords(query bson.M, idx int, limit int) ([]MongoRecord, error) {
 	return mongo_records, nil
 }
 
-func getMotorRecords(query bson.M) ([]MotorRecord, error) {
+func getMotorRecords(query map[string]any) ([]MotorRecord, error) {
 	motor_records := QueryMotorsDb(query)
 	if Verbose > 0 {
 		log.Printf("query %v found %d records\n", query, len(motor_records))

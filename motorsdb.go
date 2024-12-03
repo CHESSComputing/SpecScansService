@@ -12,7 +12,6 @@ import (
 	"text/template"
 
 	_ "github.com/mattn/go-sqlite3"
-	bson "go.mongodb.org/mongo-driver/bson"
 
 	srvConfig "github.com/CHESSComputing/golib/config"
 )
@@ -118,7 +117,7 @@ func GetMotorRecords(sids ...float64) ([]MotorRecord, error) {
 	return queryMotorsDb(query), nil
 }
 
-func QueryMotorsDb(query bson.M) []MotorRecord {
+func QueryMotorsDb(query map[string]any) []MotorRecord {
 	motorsdb_query := translateQuery(query)
 	if Verbose > 0 {
 		log.Printf("motorsdb_query: %+v\n", motorsdb_query)
@@ -126,20 +125,20 @@ func QueryMotorsDb(query bson.M) []MotorRecord {
 	return queryMotorsDb(motorsdb_query)
 }
 
-func translateQuery(query bson.M) MotorsDbQuery {
+func translateQuery(query map[string]any) MotorsDbQuery {
 	var motorsdb_query MotorsDbQuery
 
 	// Consolidate values from user query keys like "motors" and "motors.*" so
 	// that we have a query map where keys are motor names only.
-	var position_queries []bson.M
+	var position_queries []map[string]any
 	for key, val := range query {
 		if key == "motors" {
 			for _key, _val := range val.(map[string]any) {
-				position_queries = append(position_queries, bson.M{_key: _val})
+				position_queries = append(position_queries, map[string]any{_key: _val})
 			}
 		} else {
 			queryKey := strings.TrimPrefix(key, "motors.")
-			position_queries = append(position_queries, bson.M{queryKey: val})
+			position_queries = append(position_queries, map[string]any{queryKey: val})
 		}
 	}
 	for _, v := range position_queries {
@@ -153,8 +152,8 @@ func translatePositionQuery(query any) MotorPositionQuery {
 	switch query.(type) {
 	case string:
 		position_query.Mne = query.(string)
-	case bson.M: //, map[string]any:
-		for k, v := range query.(bson.M) {
+	case map[string]any:
+		for k, v := range query.(map[string]any) {
 			position_query.Mne = k
 			switch v.(type) {
 			case float64, float32:
@@ -165,7 +164,7 @@ func translatePositionQuery(query any) MotorPositionQuery {
 				}
 				// log.Printf("value is []any: %v (%T)", v, v)
 				// position_query.Exact = v.([]float64)
-			case bson.M, map[string]any:
+			case map[string]any:
 				for kk, vv := range v.(map[string]any) {
 					if kk == "$lt" {
 						position_query.Max = vv.(float64)

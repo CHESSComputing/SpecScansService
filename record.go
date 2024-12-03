@@ -8,7 +8,6 @@ import (
 	srvConfig "github.com/CHESSComputing/golib/config"
 	mongo "github.com/CHESSComputing/golib/mongo"
 	mapstructure "github.com/mitchellh/mapstructure"
-	bson "go.mongodb.org/mongo-driver/bson"
 )
 
 var Schema *schema.Schema
@@ -145,7 +144,7 @@ func CompleteMotorRecords(motor_records ...MotorRecord) ([]UserRecord, error) {
 	for _, motor_record := range motor_records {
 		sids = append(sids, motor_record.ScanId)
 	}
-	mongo_query := bson.M{"sid": bson.M{"$in": sids}}
+	mongo_query := map[string]any{"sid": map[string]any{"$in": sids}}
 	mongo_records := mongo.Get(srvConfig.Config.SpecScans.MongoDB.DBName, srvConfig.Config.SpecScans.MongoDB.DBColl, mongo_query, 0, 0)
 	for _, mongo_record_map := range mongo_records {
 		var mongo_record MongoRecord
