@@ -11,9 +11,8 @@ import (
 	"strings"
 	"text/template"
 
-	_ "github.com/mattn/go-sqlite3"
-
 	srvConfig "github.com/CHESSComputing/golib/config"
+	sqldb "github.com/CHESSComputing/golib/sqldb"
 )
 
 // var MotorsDb is our database pointer
@@ -36,26 +35,10 @@ type MotorsDbQuery struct {
 }
 
 func InitMotorsDb(dbtype string) {
-	db, err := sql.Open(dbtype, srvConfig.Config.SpecScans.DBFile)
+	db, err := sqldb.InitDB(dbtype, srvConfig.Config.SpecScans.DBFile)
 	if err != nil {
 		log.Fatal(err)
 	}
-	// Test db accessibility
-	err = db.Ping()
-	if err != nil {
-		log.Fatal(err)
-	}
-	log.Println("Pinged motors db")
-	db.SetMaxOpenConns(srvConfig.Config.DataBookkeeping.MaxDBConnections)
-	db.SetMaxIdleConns(srvConfig.Config.DataBookkeeping.MaxIdleConnections)
-	// Disables connection pool for sqlite3. This enables some concurrency with sqlite3 databases
-	// See https://stackoverflow.com/questions/57683132/turning-off-connection-pool-for-go-http-client
-	// and https://sqlite.org/wal.html
-	// This only will apply to sqlite3 databases
-	if dbtype == "sqlite3" {
-		db.Exec("PRAGMA journal_mode=WAL;")
-	}
-
 	MotorsDb = db
 }
 
