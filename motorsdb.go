@@ -175,9 +175,7 @@ func queryMotorsDb(query MotorsDbQuery) []MotorRecord {
 		return motor_records
 	}
 	if Verbose > 1 {
-		// Trim extraneous newlines for log
-		re := regexp.MustCompile(`\s+`)
-		log.Printf("Motors db query SQL statement: %s", re.ReplaceAll([]byte(statement), []byte(" ")))
+		log.Printf("Motors db query SQL statement: %s", statement)
 	}
 	rows, err := MotorsDb.Query(statement)
 	if err != nil {
@@ -236,5 +234,9 @@ func getSqlStatement(tmpl_file string, params MotorsDbQuery) (string, error) {
 	if statement == "" {
 		return "", errors.New("Statement is empty")
 	}
+	// Trim whitespace for certain sql dirver(s)
+	statement = strings.TrimSpace(statement)
+	re := regexp.MustCompile(`\s+`)
+	statement = string(re.ReplaceAll([]byte(statement), []byte(" ")))
 	return statement, nil
 }
