@@ -1,5 +1,5 @@
 SELECT S.sid, group_concat(M.motor_mne), group_concat(P.motor_position)
-FROM MotorPositions as P
+FROM MotorPositions AS P
 JOIN MotorMnes AS M ON M.motor_id=P.motor_id
 JOIN ScanIds AS S ON S.scan_id=M.scan_id
 WHERE
@@ -7,7 +7,7 @@ WHERE
 
   S.scan_id IN (
     SELECT S.scan_id
-    FROM MotorPositions as P
+    FROM MotorPositions AS P
     JOIN MotorMnes AS M ON M.motor_id=P.motor_id
     JOIN ScanIds AS S ON S.scan_id=M.scan_id
     WHERE
