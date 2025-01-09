@@ -63,9 +63,9 @@ func DecomposeRecord(user_record UserRecord) (MongoRecord, MotorRecord) {
 	var scan_id float64
 	if user_record.ScanId < 0 {
 		// This is a test record, so force a unique scan id
-		scan_id = float64(time.Now().UnixNano()) / 1e9
+		scan_id = float64(time.Now().UnixNano())
 	} else {
-		scan_id = user_record.StartTime
+		scan_id = user_record.StartTime * 1e9
 	}
 	mongo_record := MongoRecord{
 		ScanId:      scan_id,
