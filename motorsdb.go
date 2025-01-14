@@ -19,7 +19,7 @@ import (
 var MotorsDb *sql.DB
 
 type MotorRecord struct {
-	ScanId float64
+	ScanId string
 	Motors map[string]float64
 }
 
@@ -30,7 +30,7 @@ type MotorPositionQuery struct {
 	Max   float64
 }
 type MotorsDbQuery struct {
-	Sids                 []float64
+	Sids                 []string
 	MotorPositionQueries []MotorPositionQuery
 }
 
@@ -95,7 +95,7 @@ func QueryMotorPosition(mne string, pos float64) []MotorRecord {
 	return queryMotorsDb(query)
 }
 
-func GetMotorRecords(sids ...float64) ([]MotorRecord, error) {
+func GetMotorRecords(sids ...string) ([]MotorRecord, error) {
 	query := MotorsDbQuery{Sids: sids}
 	return queryMotorsDb(query), nil
 }

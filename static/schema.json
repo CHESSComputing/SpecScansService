@@ -1,9 +1,9 @@
 [
     {
   "key": "sid",
-  "type": "float64",
+  "type": "string",
   "optional": true,
-  "description": "Scan ID (usually same as start_time)",
+  "description": "Scan ID",
   "utils": ""
     },
     {

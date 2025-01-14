@@ -2,6 +2,7 @@ package main
 
 import (
 	"log"
+	"strconv"
 	"time"
 
 	schema "github.com/CHESSComputing/golib/beamlines"
@@ -13,7 +14,7 @@ import (
 var Schema *schema.Schema
 
 type UserRecord struct {
-	ScanId      float64            `json:"sid,omitempty" mapstructure:"did,omitempty"`
+	ScanId      string             `json:"sid,omitempty" mapstructure:"sid,omitempty"`
 	DatasetId   string             `json:"did" mapstructure:"did"`
 	Cycle       string             `json:"cycle" mapstructure:"cycle"`
 	Beamline    string             `json:"beamline" mapstructure:"beamline"`
@@ -30,7 +31,7 @@ type UserRecord struct {
 }
 
 type MongoRecord struct {
-	ScanId      float64        `mapstructure:"sid"`
+	ScanId      string         `mapstructure:"sid"`
 	DatasetId   string         `mapstructure:"did"`
 	Cycle       string         `mapstructure:"cycle"`
 	Beamline    string         `mapstructure:"beamline"`
@@ -60,12 +61,12 @@ func InitSchemaManager() {
 // reside in the MongoDB, and the motor positions (which will reside in the SQL
 // db).
 func DecomposeRecord(user_record UserRecord) (MongoRecord, MotorRecord) {
-	var scan_id float64
-	if user_record.ScanId < 0 {
+	var scan_id string
+	if user_record.ScanId == "test" {
 		// This is a test record, so force a unique scan id
-		scan_id = float64(time.Now().UnixNano())
+		scan_id = strconv.Itoa(int(time.Now().UnixNano()))
 	} else {
-		scan_id = user_record.StartTime * 1e9
+		scan_id = strconv.Itoa(int(user_record.StartTime * 1e9))
 	}
 	mongo_record := MongoRecord{
 		ScanId:      scan_id,
@@ -116,7 +117,7 @@ func CompleteMongoRecords(mongo_records ...MongoRecord) ([]UserRecord, error) {
 	if len(mongo_records) == 0 {
 		return user_records, nil
 	}
-	var sids []float64
+	var sids []string
 	for _, mongo_record := range mongo_records {
 		sids = append(sids, mongo_record.ScanId)
 	}
@@ -140,7 +141,7 @@ func CompleteMotorRecords(motor_records ...MotorRecord) ([]UserRecord, error) {
 	if len(motor_records) == 0 {
 		return user_records, nil
 	}
-	var sids []float64
+	var sids []string
 	for _, motor_record := range motor_records {
 		sids = append(sids, motor_record.ScanId)
 	}
