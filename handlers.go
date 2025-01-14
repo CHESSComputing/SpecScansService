@@ -347,22 +347,22 @@ func editRecord(edit map[string]any, rec_ch chan map[string]any, err_ch chan err
 	// Get unedited version of the record to edit as map[string]any
 	// (look it up by start_time or spec_file & scan_number, whichever is available)
 	query := map[string]any{}
-	sid, ok := edit["start_time"]
+	sid, ok := edit["sid"]
 	if !ok {
 		spec_file, ok := edit["spec_file"]
 		if !ok {
-			err_ch <- errors.New("Edit must contain start_time or spec_file and scan_number to identify the record to edit")
+			err_ch <- errors.New("Edit must contain \"sid\" or \"spec_file\" and \"scan_number\" to identify the record to edit")
 			return
 		}
 		scan_number, ok := edit["scan_number"]
 		if !ok {
-			err_ch <- errors.New("Edit must contain start_time or spec_file and scan_number to identify the record to edit")
+			err_ch <- errors.New("Edit must contain \"sid\" or \"spec_file\" and \"scan_number\" to identify the record to edit")
 			return
 		}
 		query["spec_file"] = spec_file
 		query["scan_number"] = scan_number
 	} else {
-		query["start_time"] = sid
+		query["sid"] = sid
 	}
 	original_records, err := getMongoRecords(query, 0, 0)
 	if len(original_records) != 1 {
@@ -386,7 +386,7 @@ func editRecord(edit map[string]any, rec_ch chan map[string]any, err_ch chan err
 	// Update the record with the edited parameters
 	update_spec := map[string]any{"$set": map[string]any{}}
 	for k, v := range edit {
-		if k != "start_time" && k != "spec_file" && k != "scan_number" {
+		if k != "sid" && k != "spec_file" && k != "scan_number" {
 			update_spec["$set"].(map[string]any)[k] = v
 		}
 	}
