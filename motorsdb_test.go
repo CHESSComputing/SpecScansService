@@ -22,7 +22,7 @@ func SetupTestDB(t *testing.T) *sql.DB {
 	createTableQuery := `
   CREATE TABLE IF NOT EXISTS ScanIds (
   scan_id INTEGER PRIMARY KEY AUTOINCREMENT,
-  sid FLOAT(8) NOT NULL UNIQUE
+  sid VARCHAR(50) NOT NULL UNIQUE
   );
 
   CREATE TABLE IF NOT EXISTS MotorMnes (
@@ -56,7 +56,7 @@ func TestInsertMotors(t *testing.T) {
 	}{
 		{
 			MotorRecord{
-				ScanId: 0.0,
+				ScanId: "sid_1",
 				Motors: map[string]float64{
 					"mne0": 1.23,
 					"mne1": 4.56,
@@ -66,14 +66,14 @@ func TestInsertMotors(t *testing.T) {
 		},
 		{
 			MotorRecord{
-				ScanId: 0.0, // violates unique sid constraint
+				ScanId: "sid_1", // violates unique sid constraint
 				Motors: map[string]float64{},
 			},
 			false,
 		},
 		{
 			MotorRecord{
-				ScanId: 1.0,
+				ScanId: "sid_2",
 				Motors: map[string]float64{
 					"mne0": 1.23,
 					"mne1": 4.56,
