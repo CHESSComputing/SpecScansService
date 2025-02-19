@@ -34,8 +34,10 @@ type MotorsDbQuery struct {
 	MotorPositionQueries []MotorPositionQuery
 }
 
-func InitMotorsDb(dbtype string) {
-	db, err := sqldb.InitDB(dbtype, srvConfig.Config.SpecScans.DBFile)
+func InitMotorsDb() {
+	dbtype, dburi, dbowner := sqldb.ParseDBFile(srvConfig.Config.SpecScans.DBFile)
+	log.Printf("InitDB: type=%s owner=%s", dbtype, dbowner)
+	db, err := sqldb.InitDB(dbtype, dburi)
 	if err != nil {
 		log.Fatal(err)
 	}
