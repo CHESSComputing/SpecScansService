@@ -7,7 +7,6 @@ import (
 	"log"
 	"path"
 	"regexp"
-	"strconv"
 	"strings"
 	"text/template"
 
@@ -188,37 +187,28 @@ func queryMotorsDb(query MotorsDbQuery) []MotorRecord {
 }
 
 func parseMotorRecords(rows *sql.Rows) []MotorRecord {
-	// Helper for parsing grouped results of sql query
+	// Helper for parsing non-grouped results of sql query
 	var motor_records []MotorRecord
-	// Parse the first record;
-	// need to do this outside the loop if there is only one row of results.
-	rows.Next()
-	motor_record := parseMotorRecord(rows)
-	motor_records = append(motor_records, motor_record)
+	record_map := make(map[string]map[string]float64) // map of scan ids: map of motor mne: position
+	var sid string
+	var motor_mne string
+	var motor_pos float64
 	for rows.Next() {
-		motor_record := parseMotorRecord(rows)
-		motor_records = append(motor_records, motor_record)
+		err := rows.Scan(&sid, &motor_mne, &motor_pos)
+		if err != nil {
+			log.Printf("Could not parse row of results: %v\n", err)
+			continue
+		}
+		_, ok := record_map[sid]
+		if !ok {
+			record_map[sid] = make(map[string]float64)
+		}
+		record_map[sid][motor_mne] = motor_pos
+	}
+	for sid := range record_map {
+		motor_records = append(motor_records, MotorRecord{ScanId: sid, Motors: record_map[sid]})
 	}
 	return motor_records
-}
-
-func parseMotorRecord(rows *sql.Rows) MotorRecord {
-	// Helper for parsing grouped results of sql query at the current cursor position only
-	motor_record := MotorRecord{}
-	_motor_mnes, _motor_positions := "", ""
-	err := rows.Scan(&motor_record.ScanId, &_motor_mnes, &_motor_positions)
-	if err != nil {
-		log.Printf("Could not get a MotorRecord from a row of SQL results. error: %v", err)
-		return motor_record
-	}
-	motor_mnes := strings.Split(_motor_mnes, ",")
-	motor_positions := strings.Split(_motor_positions, ",")
-	motors := make(map[string]float64)
-	for i := 0; i < len(motor_mnes); i++ {
-		motors[motor_mnes[i]], _ = strconv.ParseFloat(motor_positions[i], 64)
-	}
-	motor_record.Motors = motors
-	return motor_record
 }
 
 func getSqlStatement(tmpl_file string, params MotorsDbQuery) (string, error) {

@@ -1,6 +1,6 @@
-SELECT S.sid, group_concat(M.motor_mne), group_concat(P.motor_position)
-FROM MotorPositions AS P
-JOIN MotorMnes AS M ON M.motor_id=P.motor_id
+SELECT S.sid, M.motor_mne, P.motor_position
+FROM MotorMnes as M
+LEFT JOIN MotorPositions AS P ON M.motor_id=P.motor_id
 JOIN ScanIds AS S ON S.scan_id=M.scan_id
 WHERE
 {{ if gt (len .MotorPositionQueries) 0 }}
@@ -70,4 +70,4 @@ WHERE
 
 {{ end }}
 
-GROUP BY S.sid;
+;
