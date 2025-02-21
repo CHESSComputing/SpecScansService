@@ -1,7 +1,7 @@
 SELECT S.sid, M.motor_mne, P.motor_position
 FROM MotorMnes as M
-LEFT JOIN MotorPositions AS P ON M.motor_id=P.motor_id
-JOIN ScanIds AS S ON S.scan_id=M.scan_id
+JOIN MotorPositions AS P ON M.motor_id=P.motor_id
+JOIN ScanIds AS S ON S.scan_id=P.scan_id
 WHERE
 {{ if gt (len .MotorPositionQueries) 0 }}
 
@@ -9,7 +9,7 @@ WHERE
     SELECT S.scan_id
     FROM MotorPositions AS P
     JOIN MotorMnes AS M ON M.motor_id=P.motor_id
-    JOIN ScanIds AS S ON S.scan_id=M.scan_id
+    JOIN ScanIds AS S ON S.scan_id=P.scan_id
     WHERE
 
     {{ range $i, $MotorPositionQuery := .MotorPositionQueries }}
@@ -69,5 +69,4 @@ WHERE
   {{ end }}
 
 {{ end }}
-
 ;

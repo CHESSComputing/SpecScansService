@@ -65,17 +65,21 @@ func InsertMotors(r MotorRecord, db *sql.DB) (int64, error) {
 	}
 	var motor_id int64
 	for mne, pos := range r.Motors {
-		result, err = tx.Exec("INSERT INTO MotorMnes (scan_id, motor_mne) VALUES (?, ?)", scan_id, mne)
+		result, err = tx.Exec("INSERT INTO MotorMnes (motor_mne) VALUES (?)", mne)
 		if err != nil {
-			log.Printf("Could not insert record to MotorMnes table; error: %v", err)
-			continue
+			err = tx.QueryRow("SELECT motor_id FROM MotorMnes WHERE motor_mne=?", mne).Scan(&motor_id)
+			if err != nil {
+				log.Printf("Could not insert record to MotorMnes table; error: %v", err)
+				continue
+			}
+		} else {
+			motor_id, err = result.LastInsertId()
 		}
-		motor_id, err = result.LastInsertId()
 		if err != nil {
 			log.Printf("Could not get ID of new record in MotorMnes; error: %v", err)
 			continue
 		}
-		result, err = tx.Exec("INSERT INTO MotorPositions (motor_id, motor_position) VALUES (?, ?)", motor_id, pos)
+		result, err = tx.Exec("INSERT INTO MotorPositions (scan_id, motor_id, motor_position) VALUES (?, ?, ?)", scan_id, motor_id, pos)
 		if err != nil {
 			log.Printf("Could not insert record to MotorPositions table; error: %v", err)
 		}

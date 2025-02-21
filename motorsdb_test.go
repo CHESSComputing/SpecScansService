@@ -27,11 +27,11 @@ func SetupTestDB(t *testing.T) *sql.DB {
 
   CREATE TABLE IF NOT EXISTS MotorMnes (
   motor_id INTEGER PRIMARY KEY AUTOINCREMENT,
-  scan_id INTEGER NOT NULL,
-  motor_mne VARCHAR(255) NOT NULL
+  motor_mne VARCHAR(255) NOT NULL UNIQUE
   );
 
   CREATE TABLE IF NOT EXISTS MotorPositions (
+  scan_id INTEGER NOT NULL,
   motor_id INTEGER NOT NULL,
   motor_position FLOAT
   );`
@@ -112,16 +112,8 @@ func validateMotorsDbRowCounts(motor_record MotorRecord, scan_id int64, db *sql.
 		return fmt.Errorf("Expected 1 record in ScanIds, but got %d", count)
 	}
 
-	err = db.QueryRow("SELECT COUNT(*) FROM MotorMnes WHERE scan_id = ?", scan_id).Scan(&count)
-	if err != nil {
-		return fmt.Errorf("Failed to query MotorMnes table: %v", err)
-	}
-	if count != len(motor_record.Motors) {
-		return fmt.Errorf("Expected %d records in MotorMnes, but got %d", len(motor_record.Motors), count)
-	}
-
 	//err = db.QueryRow("SELECT COUNT(*) FROM MotorPositions").Scan(&count)
-	err = db.QueryRow("SELECT COUNT(*) FROM MotorPositions mp JOIN MotorMnes mm ON mp.motor_id = mm.motor_id WHERE mm.scan_id = ?", scan_id).Scan(&count)
+	err = db.QueryRow("SELECT COUNT(*) FROM MotorPositions WHERE scan_id = ?", scan_id).Scan(&count)
 	if err != nil {
 		return fmt.Errorf("Failed to query MotorPositions table: %v", err)
 	}

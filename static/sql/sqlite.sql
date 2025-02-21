@@ -5,13 +5,15 @@ sid VARCHAR(50) NOT NULL UNIQUE
 
 CREATE TABLE IF NOT EXISTS MotorMnes (
 motor_id INTEGER PRIMARY KEY AUTOINCREMENT,
-scan_id INTEGER NOT NULL /*FOREIGN KEY REFERENCES ScanIds(scan_id)*/,
-motor_mne VARCHAR(255) NOT NULL
+motor_mne VARCHAR(255) NOT NULL UNIQUE
 );
 
 CREATE TABLE IF NOT EXISTS MotorPositions (
-motor_id INTEGER NOT NULL /*FOREIGN KEY REFERENCES MotorMnes(motor_id)*/,
-motor_position FLOAT
+scan_id INTEGER NOT NULL,
+motor_id INTEGER NOT NULL,
+motor_position FLOAT,
+FOREIGN KEY (scan_id) REFERENCES ScanIds(scan_id),
+FOREIGN KEY (motor_id) REFERENCES MotorMnes(motor_id)
 );
 
 -- Individual Indexes
