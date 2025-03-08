@@ -1,9 +1,11 @@
 module github.com/CHESSComputing/SpecScansService
 
-go 1.24.0
+go 1.24.1
+
+replace github.com/CHESSComputing/golib => ../golib
 
 require (
-	github.com/CHESSComputing/golib v0.7.1
+	github.com/CHESSComputing/golib v0.7.3
 	github.com/gin-gonic/gin v1.10.0
 	github.com/mattn/go-sqlite3 v1.14.24
 	github.com/mitchellh/mapstructure v1.5.0
@@ -101,5 +103,3 @@ require (
 	modernc.org/memory v1.7.2 // indirect
 	modernc.org/sqlite v1.28.0 // indirect
 )
-
-replace github.com/CHESSComputing/golib => ../golib
