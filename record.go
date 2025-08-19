@@ -25,6 +25,7 @@ type UserRecord struct {
 	Command     string             `json:"command" mapstructure:"command"`
 	Status      string             `json:"status" mapstructure:"status"`
 	Comments    []string           `json:"comments" mapstructure:"comments"`
+	Userlines   []string           `json:"userlines" mapstructure:"userlines"`
 	SpecVersion string             `json:"spec_version" mapstructure:"spec_version"`
 	Motors      map[string]float64 `json:"motors" mapstructure:"motors"`
 	Variables   map[string]any     `json:"variables" mapstructure:"variables"`
@@ -42,6 +43,7 @@ type MongoRecord struct {
 	Command     string         `mapstructure:"command"`
 	Status      string         `mapstructure:"status"`
 	Comments    []string       `mapstructure:"comments"`
+	Userlines   []string       `mapstructure:"userlines"`
 	SpecVersion string         `mapstructure:"spec_version"`
 	Variables   map[string]any `mapstructure:"variables"`
 }
@@ -80,6 +82,7 @@ func DecomposeRecord(user_record UserRecord) (MongoRecord, MotorRecord) {
 		Command:     user_record.Command,
 		Status:      user_record.Status,
 		Comments:    user_record.Comments,
+		Userlines:   user_record.Userlines,
 		SpecVersion: user_record.SpecVersion,
 		Variables:   user_record.Variables,
 	}
@@ -104,6 +107,7 @@ func CompleteRecord(mongo_record MongoRecord, motor_record MotorRecord) UserReco
 		Command:     mongo_record.Command,
 		Status:      mongo_record.Status,
 		Comments:    mongo_record.Comments,
+		Userlines:   mongo_record.Userlines,
 		SpecVersion: mongo_record.SpecVersion,
 		Motors:      motor_record.Motors,
 		Variables:   mongo_record.Variables,
