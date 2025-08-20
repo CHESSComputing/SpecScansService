@@ -1,100 +1,107 @@
 [
-    {
-  "key": "sid",
-  "type": "string",
-  "optional": true,
-  "description": "Scan ID",
-  "utils": ""
-    },
-    {
-	"key": "cycle",
-	"type": "string",
-	"optional": false,
-	"description": "Specify cycle (e.g. 2022-3)",
-	"utils": ""
-    },
-    {
-	"key": "beamline",
-	"type": "string",
-	"optional": false,
-	"description": "Specify beamline",
-	"utils": ""
-    },
-    {
-	"key": "btr",
-	"type": "string",
-	"optional": false,
-	"description": "BTR ID",
-	"utils": ""
-    },
-    {
-	"key": "spec_file",
-	"type": "string",
-	"optional": false,
-	"description": "SPEC data file",
-	"utils": ""
-    },
-    {
-	"key": "scan_number",
-	"type": "int8",
-	"optional": false,
-	"description": "Scan number",
-	"utils": ""
-    },
-    {
-	"key": "start_time",
-	"type": "float64",
-	"optional": false,
-	"description": "Scan start time (epoch)",
-	"utils": ""
-    },
-    {
-	"key": "command",
-	"type": "string",
-	"optional": false,
-	"description": "SPEC scan command",
-	"utils": ""
-    },
-    {
-	"key": "status",
-	"type": "string",
-	"optional": false,
-	"description": "Scan status",
-	"utils": ""
-    },
-    {
-	"key": "comments",
-	"type": "list_str",
-	"optional": false,
-	"description": "SPEC scan comments",
-	"utils": ""
-    },
-    {
-	"key": "did",
-	"type": "string",
-	"optional": false,
-	"description": "Dataset ID to which this scan belongs",
-	"utils": ""
-    },
-    {
-	"key": "spec_version",
-	"type": "string",
-	"optional": false,
-	"description": "SPEC version",
-	"utils": ""
-    },
-    {
-	"key": "motors",
-	"type": "dict",
-	"optional": true,
-	"description": "SPEC scan command",
-	"utils": ""
-    },
-    {
-  "key": "variables",
-  "type": "dict",
-  "optional": false,
-  "description": "SPEC scan command",
-  "utils": ""
-    }
+  {
+    "key": "sid",
+    "type": "string",
+    "optional": true,
+    "description": "Scan ID",
+    "utils": ""
+  },
+  {
+    "key": "cycle",
+    "type": "string",
+    "optional": false,
+    "description": "Specify cycle (e.g. 2022-3)",
+    "utils": ""
+  },
+  {
+    "key": "beamline",
+    "type": "string",
+    "optional": false,
+    "description": "Specify beamline",
+    "utils": ""
+  },
+  {
+    "key": "btr",
+    "type": "string",
+    "optional": false,
+    "description": "BTR ID",
+    "utils": ""
+  },
+  {
+    "key": "spec_file",
+    "type": "string",
+    "optional": false,
+    "description": "SPEC data file",
+    "utils": ""
+  },
+  {
+    "key": "scan_number",
+    "type": "int8",
+    "optional": false,
+    "description": "Scan number",
+    "utils": ""
+  },
+  {
+    "key": "start_time",
+    "type": "float64",
+    "optional": false,
+    "description": "Scan start time (epoch)",
+    "utils": ""
+  },
+  {
+    "key": "command",
+    "type": "string",
+    "optional": false,
+    "description": "SPEC scan command",
+    "utils": ""
+  },
+  {
+    "key": "status",
+    "type": "string",
+    "optional": false,
+    "description": "Scan status",
+    "utils": ""
+  },
+  {
+    "key": "comments",
+    "type": "list_str",
+    "optional": false,
+    "description": "SPEC scan comments (#C lines)",
+    "utils": ""
+  },
+  {
+    "key": "userlines",
+    "type": "list_str",
+    "optional": false,
+    "description": "SPEC scan userlines (#U lines)",
+    "utils": ""
+  },
+  {
+    "key": "did",
+    "type": "string",
+    "optional": false,
+    "description": "Dataset ID to which this scan belongs",
+    "utils": ""
+  },
+  {
+    "key": "spec_version",
+    "type": "string",
+    "optional": false,
+    "description": "SPEC version",
+    "utils": ""
+  },
+  {
+    "key": "motors",
+    "type": "dict",
+    "optional": true,
+    "description": "SPEC scan command",
+    "utils": ""
+  },
+  {
+    "key": "variables",
+    "type": "dict",
+    "optional": false,
+    "description": "SPEC scan command",
+    "utils": ""
+  }
 ]
