@@ -26,7 +26,7 @@ func main() {
 		log.Fatal(fmt.Sprintf("Unable to parse config='%s'", config))
 	}
 	if srvConfig.Config.SpecScans.WebServer.Verbose > 0 {
-		log.SetFlags(log.LstdFlags | log.Lshortfile)
+		log.SetFlags(log.Llongfile)
 	}
 
 	Server()
