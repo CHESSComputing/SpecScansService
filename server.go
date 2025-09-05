@@ -23,9 +23,9 @@ var QLM ql.QLManager
 // helper function to setup our router
 func setupRouter() *gin.Engine {
 	routes := []server.Route{
-		server.Route{Method: "POST", Path: "/add", Handler: AddHandler, Authorized: true, Scope: "write"},
-		server.Route{Method: "PUT", Path: "/edit", Handler: EditHandler, Authorized: true, Scope: "write"},
-		server.Route{Method: "POST", Path: "/search", Handler: SearchHandler, Authorized: true},
+		{Method: "POST", Path: "/add", Handler: AddHandler, Authorized: true, Scope: "write"},
+		{Method: "PUT", Path: "/edit", Handler: EditHandler, Authorized: true, Scope: "write"},
+		{Method: "POST", Path: "/search", Handler: SearchHandler, Authorized: true},
 	}
 	r := server.Router(routes, nil, "static", srvConfig.Config.SpecScans.WebServer) // FIX temporary config
 	return r
