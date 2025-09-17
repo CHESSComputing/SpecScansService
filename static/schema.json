@@ -92,14 +92,14 @@
   },
   {
     "key": "motors",
-    "type": "dict",
+    "type": "any",
     "optional": true,
     "description": "SPEC scan command",
     "utils": ""
   },
   {
     "key": "variables",
-    "type": "dict",
+    "type": "any",
     "optional": false,
     "description": "SPEC scan command",
     "utils": ""
