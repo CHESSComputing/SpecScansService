@@ -20,7 +20,7 @@ type UserRecord struct {
 	Beamline    string             `json:"beamline" mapstructure:"beamline"`
 	Btr         string             `json:"btr" mapstructure:"btr"`
 	SpecFile    string             `json:"spec_file" mapstructure:"spec_file"`
-	ScanNumber  int8               `json:"scan_number" mapstructure:"scan_number"`
+	ScanNumber  uint16             `json:"scan_number" mapstructure:"scan_number"`
 	StartTime   float64            `json:"start_time" mapstructure:"start_time"`
 	Command     string             `json:"command" mapstructure:"command"`
 	Status      string             `json:"status" mapstructure:"status"`
@@ -38,7 +38,7 @@ type MongoRecord struct {
 	Beamline    string         `mapstructure:"beamline"`
 	Btr         string         `mapstructure:"btr"`
 	SpecFile    string         `mapstructure:"spec_file"`
-	ScanNumber  int8           `mapstructure:"scan_number"`
+	ScanNumber  uint16         `mapstructure:"scan_number"`
 	StartTime   float64        `mapstructure:"start_time"`
 	Command     string         `mapstructure:"command"`
 	Status      string         `mapstructure:"status"`

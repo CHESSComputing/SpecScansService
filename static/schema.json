@@ -36,7 +36,7 @@
   },
   {
     "key": "scan_number",
-    "type": "int8",
+    "type": "uint16",
     "optional": false,
     "description": "Scan number",
     "utils": ""
