@@ -460,6 +460,7 @@ func getMongoRecords(query map[string]any, idx int, limit int) ([]MongoRecord, e
 		var mongo_record MongoRecord
 		err := mapstructure.Decode(record, &mongo_record)
 		if err != nil {
+			log.Printf("ERROR: unable to decode record %+v into MongoRecord", record)
 			return mongo_records, err
 		}
 		mongo_records = append(mongo_records, mongo_record)
