@@ -411,16 +411,16 @@ func validateRecord(record any) (bool, error) {
 	default:
 		err := mapstructure.Decode(record, &record_map)
 		if err != nil {
-			return false, err
+			return false, fmt.Errorf("[SpecScansService.main.validateRecord] mapstructure.Decode error: %w", err)
 		}
 	}
 	err := lexicon.ValidateRecord(record_map)
 	if err != nil {
-		return false, err
+		return false, fmt.Errorf("[SpecScansService.main.validateRecord] lexicon.ValidateRecord error: %w", err)
 	}
 	err = Schema.Validate(record_map)
 	if err != nil {
-		return false, err
+		return false, fmt.Errorf("[SpecScansService.main.validateRecord] Schema.Validate error: %w", err)
 	}
 	return true, nil
 }
@@ -431,7 +431,7 @@ func getServiceQueriesByDBType(q ql.QLManager, servicename string, query string)
 	dbqueries := make(map[string]map[string]any)
 	queries, err := q.ServiceQueries(query)
 	if err != nil {
-		return dbqueries, err
+		return dbqueries, fmt.Errorf("[SpecScansService.main.getServiceQueriesByDBType] q.ServiceQueries error: %w", err)
 	}
 	specscanquery := queries[servicename]
 	for key, val := range specscanquery {
@@ -461,7 +461,7 @@ func getMongoRecords(query map[string]any, idx int, limit int) ([]MongoRecord, e
 		err := mapstructure.Decode(record, &mongo_record)
 		if err != nil {
 			log.Printf("ERROR: unable to decode record %+v into MongoRecord", record)
-			return mongo_records, err
+			return mongo_records, fmt.Errorf("[SpecScansService.main.getMongoRecords] mapstructure.Decode error: %w", err)
 		}
 		mongo_records = append(mongo_records, mongo_record)
 	}

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"bytes"
 	"database/sql"
 	"errors"
@@ -46,7 +47,7 @@ func InitMotorsDb() {
 func InsertMotors(r MotorRecord, db *sql.DB) (int64, error) {
 	tx, err := db.Begin()
 	if err != nil {
-		return -1, err
+		return -1, fmt.Errorf("[SpecScansService.main.InsertMotors] db.Begin error: %w", err)
 	}
 	defer tx.Rollback()
 
@@ -56,12 +57,12 @@ func InsertMotors(r MotorRecord, db *sql.DB) (int64, error) {
 	result, err := tx.Exec("INSERT INTO ScanIds (sid) VALUES (?)", r.ScanId)
 	if err != nil {
 		log.Printf("Could not insert record to ScanIds table; error: %v", err)
-		return -1, err
+		return -1, fmt.Errorf("[SpecScansService.main.InsertMotors] tx.Exec error: %w", err)
 	}
 	scan_id, err := result.LastInsertId()
 	if err != nil {
 		log.Printf("Could not get ID of new record in ScanIds; error: %v", err)
-		return scan_id, err
+		return scan_id, fmt.Errorf("[SpecScansService.main.InsertMotors] result.LastInsertId error: %w", err)
 	}
 	var motor_id int64
 	for mne, pos := range r.Motors {
@@ -218,13 +219,13 @@ func parseMotorRecords(rows *sql.Rows) []MotorRecord {
 func getSqlStatement(tmpl_file string, params MotorsDbQuery) (string, error) {
 	tmpl, err := template.New(tmpl_file).ParseFiles(path.Join(srvConfig.Config.SpecScans.WebServer.StaticDir, tmpl_file))
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("[SpecScansService.main.getSqlStatement] template.New error: %w", err)
 	}
 	statement := ""
 	buf := bytes.NewBufferString(statement)
 	err = tmpl.Execute(buf, params)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("[SpecScansService.main.getSqlStatement] tmpl.Execute error: %w", err)
 	}
 	statement = buf.String()
 	if statement == "" {

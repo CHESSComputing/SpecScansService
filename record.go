@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"log"
 	"strconv"
 	"time"
@@ -127,7 +128,7 @@ func CompleteMongoRecords(mongo_records ...MongoRecord) ([]UserRecord, error) {
 	}
 	motor_records, err := GetMotorRecords(sids...)
 	if err != nil {
-		return user_records, err
+		return user_records, fmt.Errorf("[SpecScansService.main.CompleteMongoRecords] GetMotorRecords error: %w", err)
 	}
 	for _, mongo_record := range mongo_records {
 		for _, motor_record := range motor_records {
@@ -155,7 +156,7 @@ func CompleteMotorRecords(motor_records ...MotorRecord) ([]UserRecord, error) {
 		var mongo_record MongoRecord
 		err := mapstructure.Decode(mongo_record_map, &mongo_record)
 		if err != nil {
-			return user_records, err
+			return user_records, fmt.Errorf("[SpecScansService.main.CompleteMotorRecords] mapstructure.Decode error: %w", err)
 		}
 		for _, motor_record := range motor_records {
 			if motor_record.ScanId == mongo_record.ScanId {
