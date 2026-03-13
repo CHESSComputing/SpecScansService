@@ -1,10 +1,10 @@
 package main
 
 import (
-	"fmt"
 	"bytes"
 	"database/sql"
 	"errors"
+	"fmt"
 	"log"
 	"path"
 	"regexp"
@@ -86,7 +86,10 @@ func InsertMotors(r MotorRecord, db *sql.DB) (int64, error) {
 		}
 	}
 	err = tx.Commit()
-	return scan_id, err
+	if err != nil {
+		return scan_id, fmt.Errorf("[SpecsScanService.main.InsertMotors] tx.Commit error: %w", err)
+	}
+	return scan_id, nil
 }
 
 func QueryMotorPosition(mne string, pos float64) []MotorRecord {
