@@ -33,20 +33,20 @@ type UserRecord struct {
 }
 
 type MongoRecord struct {
-	ScanId      string         `mapstructure:"sid"`
-	DatasetId   string         `mapstructure:"did"`
-	Cycle       string         `mapstructure:"cycle"`
-	Beamline    string         `mapstructure:"beamline"`
-	Btr         string         `mapstructure:"btr"`
-	SpecFile    string         `mapstructure:"spec_file"`
-	ScanNumber  uint16         `mapstructure:"scan_number"`
-	StartTime   float64        `mapstructure:"start_time"`
-	Command     string         `mapstructure:"command"`
-	Status      string         `mapstructure:"status"`
-	Comments    []string       `mapstructure:"comments"`
-	Userlines   []string       `mapstructure:"userlines"`
-	SpecVersion string         `mapstructure:"spec_version"`
-	Variables   map[string]any `mapstructure:"variables"`
+	ScanId      string         `json:"sid" mapstructure:"sid"`
+	DatasetId   string         `json:"did" mapstructure:"did"`
+	Cycle       string         `json:"cycle" mapstructure:"cycle"`
+	Beamline    string         `json:"beamline" mapstructure:"beamline"`
+	Btr         string         `json:"btr" mapstructure:"btr"`
+	SpecFile    string         `json:"spec_file" mapstructure:"spec_file"`
+	ScanNumber  uint16         `json:"scan_number" mapstructure:"scan_number"`
+	StartTime   float64        `json:"start_time" mapstructure:"start_time"`
+	Command     string         `json:"command" mapstructure:"command"`
+	Status      string         `json:"status" mapstructure:"status"`
+	Comments    []string       `json:"comments" mapstructure:"comments"`
+	Userlines   []string       `json:"userlines" mapstructure:"userlines"`
+	SpecVersion string         `json:"spec_version" mapstructure:"spec_version"`
+	Variables   map[string]any `json:"variables" mapstructure:"variables"`
 }
 
 func InitSchemaManager() {
