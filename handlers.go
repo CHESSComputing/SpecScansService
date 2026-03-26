@@ -282,7 +282,7 @@ func SearchHandler(c *gin.Context) {
 		}
 	}
 	var map_records []map[string]any
-	err = mapstructure.Decode(matching_records, &map_records)
+	err = Decode(matching_records, &map_records)
 	if err != nil {
 		resp := services.Response("SpecScans", http.StatusInternalServerError, services.ParseError, err)
 		c.JSON(http.StatusInternalServerError, resp)
@@ -326,7 +326,7 @@ func addRecord(record UserRecord, rec_ch chan map[string]any, err_ch chan error)
 	// If submitting the motor record was successful, submit the other portion of
 	// the record to mongodb.
 	var mongo_record_map map[string]any
-	err = mapstructure.Decode(mongo_record, &mongo_record_map)
+	err = Decode(mongo_record, &mongo_record_map)
 	if err != nil {
 		err_ch <- err
 		return
@@ -458,7 +458,7 @@ func getMongoRecords(query map[string]any, idx int, limit int) ([]MongoRecord, e
 	}
 	for _, record := range records {
 		var mongo_record MongoRecord
-		err := mapstructure.Decode(record, &mongo_record)
+		err := Decode(record, &mongo_record)
 		if err != nil {
 			log.Printf("ERROR: unable to decode record %+v into MongoRecord", record)
 			return mongo_records, fmt.Errorf("[SpecScansService.main.getMongoRecords] mapstructure.Decode error: %w", err)
@@ -474,4 +474,18 @@ func getMotorRecords(query map[string]any) ([]MotorRecord, error) {
 		log.Printf("query %v found %d records\n", query, len(motor_records))
 	}
 	return motor_records, nil
+}
+
+func Decode[T *MongoRecord | *UserRecord | *map[string]any | *[]map[string]any](record any, record_struct T) error {
+	bytes, err := json.Marshal(record)
+	if err != nil {
+		log.Printf("Error: unable to marshal record %+v", record)
+		return err
+	}
+	err = json.Unmarshal(bytes, &record_struct)
+	if err != nil {
+		log.Printf("Error: unable to unmarshal record %+v", record)
+		return err
+	}
+	return nil
 }
