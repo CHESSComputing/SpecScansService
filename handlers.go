@@ -191,6 +191,45 @@ func SearchHandler(c *gin.Context) {
 	idx := query_request.ServiceQuery.Idx
 	limit := query_request.ServiceQuery.Limit
 
+	// If a pre-built spec map was provided (e.g. a compound $and/$or filter from the
+	// Frontend), use it directly — same approach as MetaData/handlers.go QueryHandler.
+	// This avoids re-parsing the JSON query string through ql.ParseQuery, which would
+	// strip compound $and operators via adjustQuery.
+	if query_request.ServiceQuery.Spec != nil {
+		spec := query_request.ServiceQuery.Spec
+		mongo_records, err := getMongoRecords(spec, idx, limit)
+		if err != nil {
+			resp := services.Response("SpecScans", http.StatusInternalServerError, services.QueryError, err)
+			c.JSON(http.StatusInternalServerError, resp)
+			return
+		}
+		matching_records, err = CompleteMongoRecords(mongo_records...)
+		if err != nil {
+			resp := services.Response("SpecScans", http.StatusInternalServerError, services.QueryError, err)
+			c.JSON(http.StatusInternalServerError, resp)
+			return
+		}
+		var map_records []map[string]any
+		err = Decode(matching_records, &map_records)
+		if err != nil {
+			resp := services.Response("SpecScans", http.StatusInternalServerError, services.ParseError, err)
+			c.JSON(http.StatusInternalServerError, resp)
+			return
+		}
+		response := services.ServiceResponse{
+			HttpCode:     http.StatusOK,
+			SrvCode:      services.OK,
+			Service:      "SpecScans",
+			ServiceQuery: query_request.ServiceQuery,
+			Results: services.ServiceResults{
+				NRecords: len(map_records),
+				Records:  map_records,
+			},
+		}
+		c.JSON(http.StatusOK, response)
+		return
+	}
+
 	spec, err := ql.ParseQuery(query)
 	if Verbose > 0 {
 		log.Printf("search query='%s' spec=%+v", query, spec)
