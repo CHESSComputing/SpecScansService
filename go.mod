@@ -3,7 +3,7 @@ module github.com/CHESSComputing/SpecScansService
 go 1.26.4
 
 require (
-	github.com/CHESSComputing/golib v1.3.3
+	github.com/CHESSComputing/golib v1.3.4
 	github.com/gin-gonic/gin v1.12.0
 	github.com/mattn/go-sqlite3 v1.14.47
 	github.com/mitchellh/mapstructure v1.5.0
