@@ -1,5 +1,4 @@
-FROM golang:latest as go-builder
-MAINTAINER Valentin Kuznetsov vkuznet@gmail.com
+FROM golang:latest AS go-builder
 
 # build procedure
 ENV PROJECT=SpecScansService
@@ -13,14 +12,15 @@ RUN cd $PROJECT && CGO_ENABLED=1 make && cp srv /build && cp -r static /build
 RUN apt-get update && apt-get install sqlite3 && sqlite3 /build/scans.db "VACUUM;"
 
 # build final image for given image
-# FROM alpine as final
-# FROM gcr.io/distroless/static as final
+# FROM alpine AS final
+# FROM gcr.io/distroless/static AS final
 # for gibc library we will use debian:stretch
 FROM debian:stable-slim
 RUN mkdir -p /data
 COPY --from=go-builder /build/srv /data
 COPY --from=go-builder /build/scans.db /data
 COPY --from=go-builder /build/static /data/static
+LABEL org.opencontainers.image.authors="CHESS Computing group"
 LABEL org.opencontainers.image.description="FOXDEN SpecScans service"
 LABEL org.opencontainers.image.source=https://github.com/chesscomputing/specscansservice
 LABEL org.opencontainers.image.licenses=MIT
